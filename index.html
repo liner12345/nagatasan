@@ -16,7 +16,7 @@
     
     /* 数字入力ボックス */
     .digit-box {
-        width: 13%;
+        width: 15%;
         aspect-ratio: 1;
         border: 2px solid #e5e7eb;
         border-radius: 12px;
@@ -49,6 +49,21 @@
     }
     .animate-slide-in { animation: slideIn 0.3s ease-out forwards; }
     
+    /* 追加: 状態表示のドットアニメーション */
+    .loading-dots::after {
+        content: '';
+        animation: dots 1.5s steps(4, end) infinite;
+        display: inline-block;
+        width: 2em;
+        text-align: left;
+    }
+    @keyframes dots {
+        0%, 20% { content: ''; }
+        40% { content: '・'; }
+        60% { content: '・・'; }
+        80%, 100% { content: '・・・'; }
+    }
+    
     /* コピー完了のトースト通知 */
     .toast-enter-active, .toast-leave-active { transition: all 0.3s ease; }
     .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(20px); }
@@ -60,9 +75,14 @@
         <h1 class="text-xl font-bold flex items-center gap-2">
             <i class="fa-solid fa-truck-fast"></i> 配送日報 Pro
         </h1>
-        <button v-if="viewingHistoryMode" @click="closeHistoryView" class="text-xs bg-blue-700 hover:bg-blue-800 px-3 py-1.5 rounded-full border border-blue-400 transition-colors">
-            <i class="fa-solid fa-times mr-1"></i>閉じる
-        </button>
+        <div class="flex items-center gap-2">
+            <button v-if="screen === 'dashboard' && undoStack.length > 0" @click="undo" class="text-xs bg-blue-500 hover:bg-blue-400 px-3 py-1.5 rounded-full border border-blue-300 transition-colors flex items-center gap-1">
+                <i class="fa-solid fa-rotate-left"></i> 戻る
+            </button>
+            <button v-if="viewingHistoryMode" @click="closeHistoryView" class="text-xs bg-blue-700 hover:bg-blue-800 px-3 py-1.5 rounded-full border border-blue-400 transition-colors">
+                <i class="fa-solid fa-times mr-1"></i>閉じる
+            </button>
+        </div>
     </header>
 
     <main class="flex-1 p-5 flex flex-col overflow-y-auto overflow-x-hidden rounded-t-3xl -mt-4 bg-gray-50 z-20 relative">
@@ -70,12 +90,29 @@
         <div v-if="screen === 'start'" class="flex flex-col gap-6 py-4">
             <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 text-center animate-slide-in">
                 <h2 class="text-xl font-bold mb-6 text-gray-800">業務開始</h2>
+                
+                <div class="mb-6 flex justify-center gap-4">
+                    <div class="bg-gray-50 px-4 py-2 rounded-xl border border-gray-200 flex items-center gap-3">
+                        <label class="text-xs font-bold text-gray-500 flex items-center gap-1">
+                            <i class="fa-solid fa-car text-gray-400"></i> <span class="whitespace-nowrap">車両No</span>
+                        </label>
+                        <input type="tel" pattern="[0-9]*" v-model="vehicleNumber" maxlength="4" placeholder="0000" class="bg-white border border-gray-300 text-gray-800 text-lg font-bold rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-20 p-1.5 text-center shadow-inner" @input="saveVehicleNumber">
+                    </div>
+                    
+                    <div class="bg-gray-50 px-4 py-2 rounded-xl border border-gray-200 flex items-center gap-3">
+                        <label class="text-xs font-bold text-gray-500 flex items-center gap-1">
+                            <i class="fa-regular fa-clock text-gray-400"></i> <span class="whitespace-nowrap">開始</span>
+                        </label>
+                        <input type="time" v-model="startTime" class="bg-white border border-gray-300 text-gray-800 text-lg font-bold rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-1.5 text-center shadow-inner">
+                    </div>
+                </div>
+
                 <p class="text-gray-500 mb-4 text-xs font-bold">出発時のメーター距離を入力</p>
                 
-                <input ref="startInput" type="tel" pattern="[0-9]*" inputmode="numeric" v-model="inputBuffer" maxlength="7" class="opacity-0 absolute top-0 left-0 h-0 w-0" @blur="keepFocus">
+                <input ref="startInput" type="tel" pattern="[0-9]*" inputmode="numeric" v-model="inputBuffer" maxlength="6" class="opacity-0 absolute top-0 left-0 h-0 w-0" @blur="keepFocus">
 
                 <div class="flex justify-between mb-2" @click="focusStartInput">
-                    <div v-for="i in 7" :key="i" class="digit-box" :class="{ 'active': isActiveDigit(i, inputBuffer.length) }">
+                    <div v-for="i in 6" :key="i" class="digit-box" :class="{ 'active': isActiveDigit(i, inputBuffer.length) }">
                         {{ getDisplayDigit(i, inputBuffer.length) }}
                     </div>
                 </div>
@@ -94,23 +131,27 @@
                     </button>
                 </div>
                 
-                <div class="space-y-3">
-                    <div v-for="(item, idx) in historyList" :key="idx" @click="viewHistory(item)" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center active:bg-gray-50 transition-colors cursor-pointer group relative overflow-hidden">
-                        
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">
-                                <i class="fa-solid fa-file-lines"></i>
+                <div class="min-h-[300px]" @touchstart="handleTouchStart" @touchend="handleTouchEnd">
+                    <div class="space-y-3">
+                        <div v-for="(item, idx) in paginatedHistory" :key="idx" @click="viewHistory(item)" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center active:bg-gray-50 transition-colors cursor-pointer group relative overflow-hidden">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">
+                                    <i class="fa-solid fa-file-lines"></i>
+                                </div>
+                                <div>
+                                    <div class="font-bold text-gray-800">{{ item.dateStr }}</div>
+                                    <div class="text-xs text-gray-400">走行: {{ item.totalDistance }} km / 案件: {{ item.logs.filter(l => l.type === 'arrival').length }}件</div>
+                                </div>
                             </div>
-                            <div>
-                                <div class="font-bold text-gray-800">{{ item.dateStr }}</div>
-                                <div class="text-xs text-gray-400">走行: {{ item.totalDistance }} km / 案件: {{ item.logs.filter(l => l.type === 'arrival').length }}件</div>
-                            </div>
+                            <button @click.stop="deleteHistoryItem(currentHistoryPage * 5 + idx)" class="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all z-10 btn-press border border-red-100">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
                         </div>
-
-                        <button @click.stop="deleteHistoryItem(idx)" class="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all z-10 btn-press border border-red-100">
-                            <i class="fa-solid fa-xmark"></i>
-                        </button>
                     </div>
+                </div>
+
+                <div v-if="totalHistoryPages > 1" class="flex justify-center gap-2 mt-4">
+                    <div v-for="n in totalHistoryPages" :key="n" class="w-2 h-2 rounded-full transition-colors" :class="currentHistoryPage === n - 1 ? 'bg-blue-500' : 'bg-gray-300'"></div>
                 </div>
             </div>
         </div>
@@ -121,7 +162,9 @@
                 <div class="text-xl font-bold text-gray-800 flex items-center gap-3">
                     <i v-if="lastAction === 'arrival'" class="fa-solid fa-box-open text-green-500"></i>
                     <i v-else class="fa-solid fa-truck text-blue-500"></i>
-                    {{ lastAction === 'arrival' ? '作業中（到着済み）' : '移動中' }}
+                    <span :class="{ 'loading-dots': lastAction !== 'arrival' }">
+                        {{ lastAction === 'arrival' ? '作業中（到着済み）' : '移動中' }}
+                    </span>
                 </div>
             </div>
 
@@ -133,8 +176,8 @@
                     <span class="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-full" v-else>到着済み</span>
                 </button>
                 <button @click="handleDeparture" :disabled="lastAction !== 'arrival'" class="flex-1 bg-orange-500 disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none text-white rounded-3xl shadow-md flex flex-col items-center justify-center gap-2 p-4 btn-press transition-all border-b-4 border-orange-700 disabled:border-transparent">
-                    <i class="fa-solid fa-play text-4xl mb-1 ml-2"></i>
-                    <span class="text-2xl font-bold">出発</span>
+                    <i class="fa-solid fa-check text-4xl mb-1 ml-2"></i>
+                    <span class="text-2xl font-bold">完了</span>
                     <span class="text-xs opacity-90 font-bold" v-if="lastAction === 'arrival'">次の目的地へ</span>
                     <span class="text-xs font-bold text-orange-600 bg-orange-100 px-2 py-1 rounded-full" v-else>未到着</span>
                 </button>
@@ -148,16 +191,64 @@
         <div v-if="screen === 'mileage_check'" class="fixed inset-0 bg-gray-900/60 z-50 flex items-center justify-center p-4">
             <div class="bg-white w-full max-w-md p-6 rounded-3xl shadow-2xl animate-slide-in">
                 <h3 class="text-xl font-bold mb-2 text-gray-800">到着時の距離</h3>
+                
+                <div class="mb-4 flex justify-center">
+                    <div class="bg-gray-50 px-4 py-2 rounded-xl border border-gray-200 flex items-center gap-3">
+                        <label class="text-xs font-bold text-gray-500"><i class="fa-regular fa-clock"></i> 到着</label>
+                        <input type="time" v-model="tempTime" class="bg-white border border-gray-300 text-gray-800 font-bold rounded-lg p-1 text-center">
+                    </div>
+                </div>
+
                 <p class="text-xs text-gray-500 mb-6 flex items-start gap-2 bg-gray-50 p-3 rounded-lg leading-relaxed">
                     <i class="fa-solid fa-map-pin text-red-500 mt-0.5 flex-shrink-0"></i>
                     {{ tempLocation }}
                 </p>
-                <input ref="modalInput" type="tel" pattern="[0-9]*" inputmode="numeric" v-model="inputBuffer" maxlength="7" class="opacity-0 absolute top-0 left-0 h-0 w-0" @blur="keepFocus">
+                <input ref="modalInput" type="tel" pattern="[0-9]*" inputmode="numeric" v-model="inputBuffer" maxlength="6" class="opacity-0 absolute top-0 left-0 h-0 w-0" @blur="keepFocus">
                 <div class="flex justify-between mb-2" @click="focusModalInput">
-                    <div v-for="i in 7" :key="i" class="digit-box" :class="{ 'active': isActiveDigit(i, inputBuffer.length) }">{{ getDisplayDigit(i, inputBuffer.length) }}</div>
+                    <div v-for="i in 6" :key="i" class="digit-box" :class="{ 'active': isActiveDigit(i, inputBuffer.length) }">{{ getDisplayDigit(i, inputBuffer.length) }}</div>
                 </div>
                 <div class="text-right text-gray-400 font-bold text-xs mb-8 px-2">km</div>
                 <button @click="confirmArrival" :disabled="inputBuffer.length === 0" class="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-bold py-4 rounded-2xl shadow-lg btn-press text-xl">決定</button>
+            </div>
+        </div>
+
+        <div v-if="screen === 'departure_check'" class="fixed inset-0 bg-gray-900/60 z-50 flex items-center justify-center p-4">
+            <div class="bg-white w-full max-w-md p-6 rounded-3xl shadow-2xl animate-slide-in">
+                <h3 class="text-xl font-bold mb-6 text-gray-800 flex items-center gap-2">
+                    <i class="fa-solid fa-check-circle text-orange-500"></i> 完了報告
+                </h3>
+
+                <div class="space-y-4 mb-8">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">完了時刻</label>
+                        <input type="time" v-model="tempDepartureTime" class="w-full bg-gray-50 border border-gray-300 text-gray-800 text-lg font-bold rounded-xl p-3">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">配送先名</label>
+                        <input type="text" v-model="tempDestinationName" placeholder="例: 〇〇株式会社" class="w-full bg-gray-50 border border-gray-300 text-gray-800 font-bold rounded-xl p-3">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">支払い方法</label>
+                        <div class="grid grid-cols-4 gap-2">
+                            <button v-for="opt in paymentOptions" :key="opt" @click="tempPaymentMethod = opt" 
+                                class="py-2 rounded-lg text-sm font-bold border transition-all"
+                                :class="tempPaymentMethod === opt ? 'bg-blue-500 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'">
+                                {{ opt }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">備考（任意）</label>
+                        <input type="text" v-model="tempRemarks" placeholder="メモがあれば入力" class="w-full bg-gray-50 border border-gray-300 text-gray-800 rounded-xl p-3">
+                    </div>
+                </div>
+
+                <button @click="confirmDeparture" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 rounded-2xl shadow-lg btn-press text-xl">
+                    記録して完了
+                </button>
             </div>
         </div>
 
@@ -186,7 +277,12 @@
                     <div class="flex gap-4 border-t border-blue-400/50 pt-3">
                         <div>
                             <div class="text-blue-200 text-xs">開始</div>
-                            <div class="font-bold">{{ viewingHistoryMode ? historyData.startMileage : startMileage }} km</div>
+                            <div class="font-bold">
+                                {{ viewingHistoryMode ? historyData.startMileage : startMileage }} km
+                                <span class="text-sm font-normal opacity-80 ml-1">
+                                    ({{ viewingHistoryMode ? historyData.startTime : startTime }})
+                                </span>
+                            </div>
                         </div>
                         <div class="text-blue-200 pt-3">➜</div>
                         <div>
@@ -208,19 +304,38 @@
                         <div class="text-sm text-gray-600 leading-relaxed break-words bg-gray-50 p-2 rounded">{{ group.arrival.address }}</div>
                     </div>
 
-                    <div v-if="group.departure" class="flex items-center gap-2 mt-2 ml-2">
-                        <i class="fa-solid fa-arrow-down text-gray-300"></i>
-                        <span class="font-bold text-gray-700">{{ group.departure.time }}</span>
-                        <span class="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded">出発</span>
+                    <div v-if="group.departure" class="bg-orange-50 border border-orange-100 rounded-xl p-4 shadow-sm ml-4 relative">
+                        <div class="absolute -left-6 top-4 text-gray-300 text-xl"><i class="fa-solid fa-arrow-turn-up fa-rotate-90"></i></div>
+                        
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <div class="text-xs font-bold text-orange-400 mb-0.5">配送先</div>
+                                <div class="font-bold text-gray-800">{{ group.departure.destination || '（未入力）' }}</div>
+                            </div>
+                            <div class="text-right">
+                                <span class="font-bold text-lg text-gray-800">{{ group.departure.time }}</span>
+                                <span class="text-xs bg-orange-200 text-orange-700 px-2 py-0.5 rounded ml-2">完了</span>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-2 mb-1">
+                            <span class="text-xs font-bold bg-white border border-orange-200 text-orange-600 px-2 py-1 rounded">
+                                <i class="fa-solid fa-yen-sign mr-1"></i>{{ group.departure.payment }}
+                            </span>
+                        </div>
+
+                        <div v-if="group.departure.remarks" class="text-sm text-gray-600 mt-2 border-t border-orange-200/50 pt-2">
+                            <i class="fa-regular fa-comment-dots text-orange-300 mr-1"></i> {{ group.departure.remarks }}
+                        </div>
                     </div>
                 </div>
             </div>
 
             <div class="fixed bottom-5 left-5 right-5 z-30 flex flex-col gap-3">
                 
-                <button @click="copyToClipboard" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3.5 rounded-2xl shadow-md btn-press flex items-center justify-center gap-2 transition-colors">
-                    <i class="fa-brands fa-line text-xl"></i>
-                    {{ showCopyToast ? 'コピーしました！' : 'テキストでコピー（LINE用）' }}
+                <button @click="copyToClipboard" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-2xl shadow-md btn-press flex items-center justify-center gap-2 transition-colors">
+                    <i class="fa-solid fa-file-excel text-xl"></i>
+                    {{ showCopyToast ? 'コピーしました！' : 'Excel転記用データをコピー' }}
                 </button>
 
                 <button v-if="!viewingHistoryMode" @click="saveAndReset" class="w-full bg-gray-800 hover:bg-gray-900 text-white font-bold py-3.5 rounded-2xl shadow-xl btn-press flex items-center justify-center gap-2 transition-colors">
@@ -243,7 +358,7 @@
 
     createApp({
         setup() {
-            // State
+            // --- State ---
             const screen = ref('start'); 
             const inputBuffer = ref('');
             const loading = ref(false);
@@ -251,6 +366,9 @@
             const lastAction = ref('none'); 
             const startMileage = ref(0);
             const logs = ref([]);
+            const vehicleNumber = ref('');
+            const startTime = ref('');
+            const undoStack = ref([]);
             
             // History
             const historyList = ref([]);
@@ -264,8 +382,27 @@
             const startInput = ref(null);
             const modalInput = ref(null);
 
-            // Init
+            // Pagination & Swipe
+            const currentHistoryPage = ref(0);
+            const touchStartX = ref(0);
+            
+            // Departure Modal Data
+            const tempDepartureTime = ref('');
+            const tempDestinationName = ref('');
+            const tempPaymentMethod = ref('現金');
+            const tempRemarks = ref('');
+            const paymentOptions = ['現金', 'カード', '請求書', 'web'];
+
+            // GPS Intelligence
+            const tempLat = ref(null);
+            const tempLon = ref(null);
+            const savedLocations = ref([]);
+
+            // --- Init ---
             onMounted(() => {
+                const now = new Date();
+                startTime.value = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+
                 const savedData = localStorage.getItem('nippoData_pro_v2');
                 if (savedData) {
                     const parsed = JSON.parse(savedData);
@@ -273,13 +410,30 @@
                     startMileage.value = parsed.startMileage;
                     logs.value = parsed.logs;
                     lastAction.value = parsed.lastAction;
+                    if (parsed.startTime) startTime.value = parsed.startTime;
+                    if (parsed.undoStack) undoStack.value = parsed.undoStack;
                 }
                 const savedHistory = localStorage.getItem('nippoHistory_v2');
                 if (savedHistory) historyList.value = JSON.parse(savedHistory);
+
+                const savedVehicleNo = localStorage.getItem('nippoVehicleNo');
+                if (savedVehicleNo) vehicleNumber.value = savedVehicleNo;
+
+                // 学習データの読み込み
+                const loadedLocations = localStorage.getItem('nippoLocations');
+                if (loadedLocations) savedLocations.value = JSON.parse(loadedLocations);
             });
 
+            // --- Save & Storage ---
             const saveData = () => {
-                const data = { screen: screen.value, startMileage: startMileage.value, logs: logs.value, lastAction: lastAction.value };
+                const data = { 
+                    screen: screen.value, 
+                    startMileage: startMileage.value, 
+                    logs: logs.value, 
+                    lastAction: lastAction.value,
+                    startTime: startTime.value,
+                    undoStack: undoStack.value
+                };
                 localStorage.setItem('nippoData_pro_v2', JSON.stringify(data));
             };
 
@@ -287,32 +441,89 @@
                 localStorage.setItem('nippoHistory_v2', JSON.stringify(historyList.value));
             };
 
-            // Input Logic
-            const getDisplayDigit = (idx, len) => idx <= 7 - len ? '' : inputBuffer.value[idx - (7 - len) - 1] || '';
-            const isActiveDigit = (idx, len) => len < 7 && idx === 7;
+            const saveVehicleNumber = () => {
+                localStorage.setItem('nippoVehicleNo', vehicleNumber.value);
+            };
 
-            // Core Actions
+            // --- Undo ---
+            const saveStateForUndo = () => {
+                undoStack.value.push({
+                    logs: JSON.parse(JSON.stringify(logs.value)),
+                    lastAction: lastAction.value
+                });
+            };
+
+            const undo = () => {
+                if (undoStack.value.length === 0) return;
+                const prevState = undoStack.value.pop();
+                logs.value = prevState.logs;
+                lastAction.value = prevState.lastAction;
+                saveData();
+            };
+
+            // --- Helper Functions ---
+            const getDisplayDigit = (idx, len) => idx <= 6 - len ? '' : inputBuffer.value[idx - (6 - len) - 1] || '';
+            const isActiveDigit = (idx, len) => len < 6 && idx === 6;
+            
             const focusStartInput = () => nextTick(() => startInput.value && startInput.value.focus());
             const focusModalInput = () => nextTick(() => modalInput.value && modalInput.value.focus());
-            
+
+            // 2点間の距離計算 (Haversine formula)
+            const getDistance = (lat1, lon1, lat2, lon2) => {
+                const R = 6371000; // 地球の半径 (m)
+                const dLat = (lat2 - lat1) * Math.PI / 180;
+                const dLon = (lon2 - lon1) * Math.PI / 180;
+                const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                          Math.sin(dLon/2) * Math.sin(dLon/2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                return R * c;
+            };
+
+            // --- Core Actions ---
             const startWork = () => {
                 startMileage.value = inputBuffer.value;
                 logs.value = [];
+                undoStack.value = [];
                 inputBuffer.value = '';
                 lastAction.value = 'start';
                 screen.value = 'dashboard';
                 saveData();
             };
 
+            // 座標も取得するように変更
+            const getCurrentLocation = () => {
+                return new Promise((resolve) => {
+                    if (!navigator.geolocation) { resolve({ address: '位置情報非対応', lat: null, lon: null }); return; }
+                    navigator.geolocation.getCurrentPosition(async (pos) => {
+                        try {
+                            const lat = pos.coords.latitude;
+                            const lon = pos.coords.longitude;
+                            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`, {headers: {'Accept-Language': 'ja'}});
+                            const data = await res.json();
+                            const a = data.address;
+                            const formatted = [...new Set([a.province, a.city, a.ward, a.town, a.suburb, a.village, a.neighbourhood, a.road, a.house_number].filter(Boolean))].join('');
+                            resolve({ address: formatted || '住所不明', lat, lon });
+                        } catch { resolve({ address: '住所取得エラー', lat: null, lon: null }); }
+                    }, () => resolve({ address: '位置情報取得失敗', lat: null, lon: null }), { enableHighAccuracy: true });
+                });
+            };
+
             const handleArrival = async () => {
                 loading.value = true;
                 loadingText.value = '現在地を取得中...';
-                const [time, address] = await Promise.all([
+                
+                const [time, locationData] = await Promise.all([
                     new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
                     getCurrentLocation()
                 ]);
+                
                 tempTime.value = time;
-                tempAddress.value = address;
+                tempAddress.value = locationData.address;
+                // 座標を一時保存
+                tempLat.value = locationData.lat;
+                tempLon.value = locationData.lon;
+                
                 loading.value = false;
                 screen.value = 'mileage_check';
                 inputBuffer.value = '';
@@ -320,6 +531,7 @@
             };
 
             const confirmArrival = () => {
+                saveStateForUndo();
                 logs.value.push({ type: 'arrival', time: tempTime.value, address: tempAddress.value, mileage: inputBuffer.value });
                 lastAction.value = 'arrival';
                 screen.value = 'dashboard';
@@ -328,28 +540,70 @@
             };
 
             const handleDeparture = () => {
-                logs.value.push({ type: 'departure', time: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) });
+                tempDepartureTime.value = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+                tempDestinationName.value = '';
+                tempPaymentMethod.value = '現金';
+                tempRemarks.value = '';
+
+                // GPS座標がある場合、過去のデータから検索して自動入力
+                if (tempLat.value && tempLon.value && savedLocations.value.length > 0) {
+                    let nearestLocation = null;
+                    let minDistance = 50; // 50m以内を対象
+
+                    savedLocations.value.forEach(loc => {
+                        const dist = getDistance(tempLat.value, tempLon.value, loc.lat, loc.lon);
+                        if (dist < minDistance) {
+                            minDistance = dist;
+                            nearestLocation = loc;
+                        }
+                    });
+
+                    if (nearestLocation) {
+                        tempDestinationName.value = nearestLocation.name;
+                    }
+                }
+
+                screen.value = 'departure_check';
+            };
+
+            const confirmDeparture = () => {
+                saveStateForUndo();
+
+                // 学習ロジック: 配送先名があり、座標が取得できていれば保存/更新
+                if (tempDestinationName.value && tempLat.value && tempLon.value) {
+                    const existingIndex = savedLocations.value.findIndex(loc => 
+                        getDistance(tempLat.value, tempLon.value, loc.lat, loc.lon) < 50
+                    );
+
+                    if (existingIndex !== -1) {
+                        // 更新
+                        savedLocations.value[existingIndex].name = tempDestinationName.value;
+                        savedLocations.value[existingIndex].lat = tempLat.value;
+                        savedLocations.value[existingIndex].lon = tempLon.value;
+                    } else {
+                        // 新規追加
+                        savedLocations.value.push({
+                            lat: tempLat.value,
+                            lon: tempLon.value,
+                            name: tempDestinationName.value
+                        });
+                    }
+                    localStorage.setItem('nippoLocations', JSON.stringify(savedLocations.value));
+                }
+
+                logs.value.push({ 
+                    type: 'departure', 
+                    time: tempDepartureTime.value,
+                    destination: tempDestinationName.value,
+                    payment: tempPaymentMethod.value,
+                    remarks: tempRemarks.value
+                });
                 lastAction.value = 'departure';
+                screen.value = 'dashboard';
                 saveData();
             };
 
-            // Location
-            const getCurrentLocation = () => {
-                return new Promise((resolve) => {
-                    if (!navigator.geolocation) { resolve('位置情報非対応'); return; }
-                    navigator.geolocation.getCurrentPosition(async (pos) => {
-                        try {
-                            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&zoom=18&addressdetails=1`, {headers: {'Accept-Language': 'ja'}});
-                            const data = await res.json();
-                            const a = data.address;
-                            const formatted = [...new Set([a.province, a.city, a.ward, a.town, a.suburb, a.village, a.neighbourhood, a.road, a.house_number].filter(Boolean))].join('');
-                            resolve(formatted || '住所不明');
-                        } catch { resolve('住所取得エラー'); }
-                    }, () => resolve('位置情報取得失敗'), { enableHighAccuracy: true });
-                });
-            };
-
-            // Summary & History
+            // --- Summary & History ---
             const goToSummary = () => { screen.value = 'summary'; saveData(); };
             const backToDashboard = () => { screen.value = 'dashboard'; saveData(); };
 
@@ -359,6 +613,7 @@
                 historyList.value.unshift({
                     dateStr: todayStr,
                     startMileage: startMileage.value,
+                    startTime: startTime.value,
                     logs: logs.value,
                     totalDistance: calculateTotalDistance.value
                 });
@@ -367,11 +622,13 @@
                 screen.value = 'start';
                 startMileage.value = 0;
                 logs.value = [];
+                undoStack.value = [];
                 lastAction.value = 'none';
                 inputBuffer.value = '';
+                const now = new Date();
+                startTime.value = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
             };
 
-            // New: Delete Features
             const deleteHistoryItem = (index) => {
                 if(!confirm('本当にこの履歴を削除しますか？\n（この操作は取り消せません）')) return;
                 historyList.value.splice(index, 1);
@@ -384,36 +641,66 @@
                 updateHistoryStorage();
             };
 
-            // New: Copy Feature
+            // 変更: Excel転記用データ生成・コピー機能
             const copyToClipboard = () => {
                 const targetLogs = viewingHistoryMode.value ? historyData.value.logs : logs.value;
-                const targetStart = viewingHistoryMode.value ? historyData.value.startMileage : startMileage.value;
-                const targetTotal = calculateTotalDistance.value;
-                const dateTitle = viewingHistoryMode.value ? historyData.value.dateStr : new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' });
+                const targetStartKm = viewingHistoryMode.value ? historyData.value.startMileage : startMileage.value;
+                const targetStartTime = viewingHistoryMode.value ? historyData.value.startTime : startTime.value;
+                const targetDate = viewingHistoryMode.value ? historyData.value.dateStr : new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' });
+                const targetVehicle = vehicleNumber.value;
                 
-                // LINE向けフォーマット作成
-                let text = `📅 日報報告 ${dateTitle}\n`;
-                text += `━━━━━━━━━━━━━━━\n`;
-                text += `🚚 総走行距離: ${targetTotal} km\n`;
-                text += `(開始: ${targetStart}km ➔ 終了: ${getLastMileage.value}km)\n`;
-                text += `━━━━━━━━━━━━━━━\n\n`;
+                // 終了情報の取得（最後のログの時刻）
+                const lastLog = targetLogs.length > 0 ? targetLogs[targetLogs.length - 1] : null;
+                const targetEndTime = lastLog ? lastLog.time : '';
+                const targetEndKm = getLastMileage.value;
 
-                let caseCount = 1;
-                let currentGroup = [];
-                
-                // ログの整形
-                targetLogs.forEach(log => {
-                    if(log.type === 'arrival') {
-                        text += `【案件 ${caseCount}】\n`;
-                        text += `📍 到着: ${log.time} (${log.mileage}km)\n`;
-                        text += `   ${log.address}\n`;
-                        caseCount++;
-                    } else if(log.type === 'departure') {
-                        text += `▶️ 出発: ${log.time}\n\n`;
-                    }
+                // 案件データのグループ化（履歴モード対応）
+                let groups = [];
+                if (viewingHistoryMode.value) {
+                    let currentGroup = null;
+                    targetLogs.forEach(log => {
+                        if (log.type === 'arrival') {
+                            currentGroup = { arrival: log, departure: null };
+                            groups.push(currentGroup);
+                        } else if (log.type === 'departure') {
+                            if (currentGroup) currentGroup.departure = log;
+                            else groups.push({ arrival: null, departure: log });
+                            currentGroup = null;
+                        }
+                    });
+                } else {
+                    groups = groupedLogs.value;
+                }
+
+                // データ生成 (Key::Value形式)
+                let data = [];
+                data.push(`DATE::${targetDate}`);
+                data.push(`START_KM::${targetStartKm}`);
+                data.push(`END_KM::${targetEndKm}`);
+                data.push(`START_TIME::${targetStartTime}`);
+                data.push(`END_TIME::${targetEndTime}`);
+                data.push(`VEHICLE_NO::${targetVehicle}`);
+
+                // 案件詳細 (最大8件まで出力)
+                groups.forEach((group, index) => {
+                    if (index >= 8) return; 
+                    const num = index + 1;
+                    
+                    // 到着情報
+                    const arr = group.arrival || {};
+                    data.push(`CASE_${num}_ADDRESS::${arr.address || ''}`);
+                    data.push(`CASE_${num}_ARR_TIME::${arr.time || ''}`);
+                    data.push(`CASE_${num}_ARR_KM::${arr.mileage || ''}`);
+
+                    // 出発(完了)情報
+                    const dep = group.departure || {};
+                    data.push(`CASE_${num}_DEST::${dep.destination || ''}`);
+                    data.push(`CASE_${num}_DEP_TIME::${dep.time || ''}`); // 出発時刻 = 完了時刻
+                    data.push(`CASE_${num}_PAY::${dep.payment || ''}`);
+                    data.push(`CASE_${num}_NOTE::${dep.remarks || ''}`);
                 });
 
-                text += `\n以上、報告致します。`;
+                const text = data.join('\n');
 
                 navigator.clipboard.writeText(text).then(() => {
                     showCopyToast.value = true;
@@ -432,7 +719,7 @@
                 screen.value = 'start';
             };
 
-            // Computed
+            // --- Computed ---
             const activeLogs = computed(() => viewingHistoryMode.value ? historyData.value?.logs || [] : logs.value);
             const activeStart = computed(() => viewingHistoryMode.value ? historyData.value?.startMileage || 0 : startMileage.value);
             
@@ -463,10 +750,33 @@
                 return groups;
             });
 
+            // Pagination
+            const paginatedHistory = computed(() => {
+                const start = currentHistoryPage.value * 5;
+                return historyList.value.slice(start, start + 5);
+            });
+            const totalHistoryPages = computed(() => Math.ceil(historyList.value.length / 5));
+
+            const handleTouchStart = (e) => { touchStartX.value = e.touches[0].clientX; };
+            const handleTouchEnd = (e) => {
+                const touchEndX = e.changedTouches[0].clientX;
+                if (touchStartX.value - touchEndX > 50) {
+                    if (currentHistoryPage.value < totalHistoryPages.value - 1) currentHistoryPage.value++;
+                } else if (touchEndX - touchStartX.value > 50) {
+                    if (currentHistoryPage.value > 0) currentHistoryPage.value--;
+                }
+            };
+
             return {
                 screen, inputBuffer, loading, loadingText, lastAction, startMileage,
                 historyList, viewingHistoryMode, historyData, showCopyToast,
-                startInput, modalInput, tempLocation: tempAddress,
+                startInput, modalInput, tempLocation: tempAddress, tempTime,
+                vehicleNumber, saveVehicleNumber, startTime, undoStack, undo,
+                
+                currentHistoryPage, totalHistoryPages, paginatedHistory, handleTouchStart, handleTouchEnd,
+                tempDepartureTime, tempDestinationName, tempPaymentMethod, tempRemarks, paymentOptions,
+                confirmDeparture,
+
                 getDisplayDigit, isActiveDigit, focusStartInput, focusModalInput, keepFocus: () => {},
                 startWork, handleArrival, confirmArrival, handleDeparture,
                 goToSummary, backToDashboard, saveAndReset, viewHistory, closeHistoryView,
