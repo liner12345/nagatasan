@@ -67,9 +67,12 @@
     /* コピー完了のトースト通知 */
     .toast-enter-active, .toast-leave-active { transition: all 0.3s ease; }
     .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(20px); }
+
+    /* 追加: Vueのマウント完了まで要素を隠す（チラつき防止） */
+    [v-cloak] { display: none !important; }
 </style>
 
-<div id="app" class="max-w-md mx-auto min-h-screen bg-gray-50 flex flex-col relative overflow-hidden">
+<div id="app" v-cloak style="display: none;" class="max-w-md mx-auto min-h-screen bg-gray-50 flex flex-col relative overflow-hidden">
 
     <header class="bg-blue-600 text-white p-5 shadow-md z-10 sticky top-0 flex-shrink-0 flex justify-between items-center">
         <h1 class="text-xl font-bold flex items-center gap-2">
@@ -92,18 +95,18 @@
                 <h2 class="text-xl font-bold mb-6 text-gray-800">業務開始</h2>
                 
                 <div class="mb-6 flex justify-center gap-4">
-                    <div class="bg-gray-50 px-4 py-2 rounded-xl border border-gray-200 flex items-center gap-3">
-                        <label class="text-xs font-bold text-gray-500 flex items-center gap-1">
-                            <i class="fa-solid fa-car text-gray-400"></i> <span class="whitespace-nowrap">車両No</span>
+                    <div class="flex flex-col items-center gap-1">
+                        <label class="text-xs font-bold text-gray-400">
+                            <i class="fa-solid fa-car"></i> 車両No
                         </label>
-                        <input type="tel" pattern="[0-9]*" v-model="vehicleNumber" maxlength="4" placeholder="0000" class="bg-white border border-gray-300 text-gray-800 text-lg font-bold rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-20 p-1.5 text-center shadow-inner" @input="saveVehicleNumber">
+                        <input type="tel" pattern="[0-9]*" v-model="vehicleNumber" maxlength="4" placeholder="0000" class="bg-gray-50 border border-gray-200 text-gray-800 text-lg font-bold rounded-xl focus:ring-blue-500 focus:border-blue-500 block w-24 p-2 text-center shadow-sm" @input="saveVehicleNumber">
                     </div>
                     
-                    <div class="bg-gray-50 px-4 py-2 rounded-xl border border-gray-200 flex items-center gap-3">
-                        <label class="text-xs font-bold text-gray-500 flex items-center gap-1">
-                            <i class="fa-regular fa-clock text-gray-400"></i> <span class="whitespace-nowrap">開始</span>
+                    <div class="flex flex-col items-center gap-1">
+                        <label class="text-xs font-bold text-gray-400">
+                            <i class="fa-regular fa-clock"></i> 開始
                         </label>
-                        <input type="time" v-model="startTime" class="bg-white border border-gray-300 text-gray-800 text-lg font-bold rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-1.5 text-center shadow-inner">
+                        <input type="time" v-model="startTime" class="bg-gray-50 border border-gray-200 text-gray-800 text-lg font-bold rounded-xl focus:ring-blue-500 focus:border-blue-500 block w-32 p-2 text-center shadow-sm">
                     </div>
                 </div>
 
@@ -131,7 +134,7 @@
                     </button>
                 </div>
                 
-                <div class="min-h-[300px]" @touchstart="handleTouchStart" @touchend="handleTouchEnd">
+                <div class="min-h-[300px]">
                     <div class="space-y-3">
                         <div v-for="(item, idx) in paginatedHistory" :key="idx" @click="viewHistory(item)" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center active:bg-gray-50 transition-colors cursor-pointer group relative overflow-hidden">
                             <div class="flex items-center gap-3">
@@ -150,8 +153,24 @@
                     </div>
                 </div>
 
-                <div v-if="totalHistoryPages > 1" class="flex justify-center gap-2 mt-4">
-                    <div v-for="n in totalHistoryPages" :key="n" class="w-2 h-2 rounded-full transition-colors" :class="currentHistoryPage === n - 1 ? 'bg-blue-500' : 'bg-gray-300'"></div>
+                <div v-if="totalHistoryPages > 1" class="flex justify-center items-center gap-6 mt-6">
+                    <button 
+                        @click="currentHistoryPage > 0 ? currentHistoryPage-- : null" 
+                        :disabled="currentHistoryPage === 0"
+                        class="w-10 h-10 rounded-full bg-white border border-gray-200 text-gray-600 shadow-sm flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed btn-press">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    
+                    <span class="text-sm font-bold text-gray-500">
+                        {{ currentHistoryPage + 1 }} / {{ totalHistoryPages }}
+                    </span>
+
+                    <button 
+                        @click="currentHistoryPage < totalHistoryPages - 1 ? currentHistoryPage++ : null" 
+                        :disabled="currentHistoryPage === totalHistoryPages - 1"
+                        class="w-10 h-10 rounded-full bg-white border border-gray-200 text-gray-600 shadow-sm flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed btn-press">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
                 </div>
             </div>
         </div>
@@ -221,12 +240,12 @@
                 <div class="space-y-4 mb-8">
                     <div>
                         <label class="block text-xs font-bold text-gray-500 mb-1">完了時刻</label>
-                        <input type="time" v-model="tempDepartureTime" class="w-full bg-gray-50 border border-gray-300 text-gray-800 text-lg font-bold rounded-xl p-3">
+                        <input type="time" v-model="tempDepartureTime" @blur="fixScroll" class="w-full bg-gray-50 border border-gray-300 text-gray-800 text-lg font-bold rounded-xl p-3">
                     </div>
 
                     <div>
                         <label class="block text-xs font-bold text-gray-500 mb-1">配送先名</label>
-                        <input type="text" v-model="tempDestinationName" placeholder="例: 〇〇株式会社" class="w-full bg-gray-50 border border-gray-300 text-gray-800 font-bold rounded-xl p-3">
+                        <input type="text" v-model="tempDestinationName" @blur="fixScroll" placeholder="例: 〇〇株式会社" class="w-full bg-gray-50 border border-gray-300 text-gray-800 font-bold rounded-xl p-3">
                     </div>
 
                     <div>
@@ -242,7 +261,7 @@
 
                     <div>
                         <label class="block text-xs font-bold text-gray-500 mb-1">備考（任意）</label>
-                        <input type="text" v-model="tempRemarks" placeholder="メモがあれば入力" class="w-full bg-gray-50 border border-gray-300 text-gray-800 rounded-xl p-3">
+                        <input type="text" v-model="tempRemarks" @blur="fixScroll" placeholder="メモがあれば入力" class="w-full bg-gray-50 border border-gray-300 text-gray-800 rounded-xl p-3">
                     </div>
                 </div>
 
@@ -354,7 +373,8 @@
 </div>
 
 <script>
-    const { createApp, ref, onMounted, nextTick, computed } = Vue;
+    // 変更: watch を追加
+    const { createApp, ref, onMounted, nextTick, computed, watch } = Vue;
 
     createApp({
         setup() {
@@ -400,6 +420,9 @@
 
             // --- Init ---
             onMounted(() => {
+                // 追加: アプリの準備ができたら表示する（チラつき防止）
+                document.getElementById('app').style.display = '';
+
                 const now = new Date();
                 startTime.value = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
 
@@ -424,13 +447,29 @@
                 if (loadedLocations) savedLocations.value = JSON.parse(loadedLocations);
             });
 
+            // 追加: 画面遷移を監視して、モーダル表示時は背景スクロールを固定する
+            watch(screen, (newVal) => {
+                if (newVal === 'mileage_check' || newVal === 'departure_check') {
+                    document.body.style.overflow = 'hidden'; // スクロール禁止
+                } else {
+                    document.body.style.overflow = ''; // 解除
+                }
+            });
+
+            // 追加: iOSキーボード閉じ対策（スクロール位置のズレを直す）
+            const fixScroll = () => {
+                setTimeout(() => {
+                    window.scrollTo(0, window.scrollY);
+                }, 100);
+            };
+
             // --- Save & Storage ---
             const saveData = () => {
                 const data = { 
                     screen: screen.value, 
                     startMileage: startMileage.value, 
                     logs: logs.value, 
-                    lastAction: lastAction.value,
+                    lastAction: lastAction.value, 
                     startTime: startTime.value,
                     undoStack: undoStack.value
                 };
@@ -641,7 +680,7 @@
                 updateHistoryStorage();
             };
 
-            // 変更: Excel転記用データ生成・コピー機能
+            // Excel転記用データ生成・コピー機能
             const copyToClipboard = () => {
                 const targetLogs = viewingHistoryMode.value ? historyData.value.logs : logs.value;
                 const targetStartKm = viewingHistoryMode.value ? historyData.value.startMileage : startMileage.value;
@@ -776,6 +815,8 @@
                 currentHistoryPage, totalHistoryPages, paginatedHistory, handleTouchStart, handleTouchEnd,
                 tempDepartureTime, tempDestinationName, tempPaymentMethod, tempRemarks, paymentOptions,
                 confirmDeparture,
+                
+                fixScroll, // 追加: returnに含める
 
                 getDisplayDigit, isActiveDigit, focusStartInput, focusModalInput, keepFocus: () => {},
                 startWork, handleArrival, confirmArrival, handleDeparture,
