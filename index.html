@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>スマホ日報 - Smart Log Ultimate V3.3</title>
+<title>スマホ日報 - Smart Log Ultimate V3.4</title>
 <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -64,10 +64,11 @@
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         transition: all 0.2s;
     }
-    .digit-box.active {
+    /* 数字が入っているときだけ強調 */
+    .digit-box.filled {
         border-color: #3b82f6;
         background-color: #eff6ff;
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        color: #1d4ed8;
     }
 
     /* キーパッドのボタン */
@@ -94,6 +95,11 @@
         background-color: #f9fafb;
         color: #6b7280;
         font-size: 1.1rem;
+    }
+    /* 空白ボタン用 */
+    .keypad-spacer {
+        height: 52px;
+        visibility: hidden; /* 存在はするが見えない */
     }
 
     /* --- Input Styles (iOS Fixes & PC Cleanups) --- */
@@ -127,18 +133,19 @@
     }
     .animate-slide-in { animation: slideIn 0.3s ease-out forwards; }
     
+    /* 読み込み中アニメーション（小さいドットに変更） */
     .loading-dots::after {
         content: '';
         animation: dots 1.5s steps(4, end) infinite;
         display: inline-block;
-        width: 2em;
+        width: 1.5em; /* 幅を少し調整 */
         text-align: left;
     }
     @keyframes dots {
         0%, 20% { content: ''; }
-        40% { content: '・'; }
-        60% { content: '・・'; }
-        80%, 100% { content: '・・・'; }
+        40% { content: '.'; }
+        60% { content: '..'; }
+        80%, 100% { content: '...'; }
     }
     
     .toast-enter-active, .toast-leave-active { transition: all 0.3s ease; }
@@ -196,14 +203,14 @@
                 <p class="text-gray-500 mb-2 text-xs font-bold">出発時のメーター距離</p>
                 
                 <div class="flex justify-between gap-1 mb-6 px-1">
-                    <div v-for="i in 6" :key="i" class="digit-box" :class="{ 'active': i === inputBuffer.length + 1 }">
+                    <div v-for="i in 6" :key="i" class="digit-box" :class="{ 'filled': getDisplayDigit(i) !== '' }">
                         {{ getDisplayDigit(i) }}
                     </div>
                 </div>
 
                 <div class="grid grid-cols-3 gap-3 mb-6">
                     <button v-for="n in [1,2,3,4,5,6,7,8,9]" :key="n" @click="appendDigit(n)" class="keypad-btn">{{ n }}</button>
-                    <button @click="clearDigits" class="keypad-btn action text-red-400"><i class="fa-solid fa-trash-can"></i></button>
+                    <div class="keypad-spacer"></div> 
                     <button @click="appendDigit(0)" class="keypad-btn">0</button>
                     <button @click="removeDigit" class="keypad-btn action"><i class="fa-solid fa-delete-left"></i></button>
                 </div>
@@ -272,8 +279,8 @@
                 <div class="text-xl font-bold text-gray-800 flex items-center gap-3">
                     <i v-if="lastAction === 'arrival'" class="fa-solid fa-box-open text-green-500"></i>
                     <i v-else class="fa-solid fa-truck text-blue-500"></i>
-                    <span :class="{ 'loading-dots': lastAction !== 'arrival' }">
-                        {{ lastAction === 'arrival' ? '作業中（到着済み）' : '移動中' }}
+                    <span :class="{ 'loading-dots': true }">
+                        {{ getStatusText }}
                     </span>
                 </div>
             </div>
@@ -404,14 +411,14 @@
                 </p>
 
                 <div class="flex justify-between gap-1 mb-4 px-1">
-                    <div v-for="i in 6" :key="i" class="digit-box" :class="{ 'active': i === inputBuffer.length + 1 }">
+                    <div v-for="i in 6" :key="i" class="digit-box" :class="{ 'filled': getDisplayDigit(i) !== '' }">
                         {{ getDisplayDigit(i) }}
                     </div>
                 </div>
 
                 <div class="grid grid-cols-3 gap-3 mb-6">
                     <button v-for="n in [1,2,3,4,5,6,7,8,9]" :key="n" @click="appendDigit(n)" class="keypad-btn">{{ n }}</button>
-                    <button @click="clearDigits" class="keypad-btn action text-red-400"><i class="fa-solid fa-trash-can"></i></button>
+                    <div class="keypad-spacer"></div>
                     <button @click="appendDigit(0)" class="keypad-btn">0</button>
                     <button @click="removeDigit" class="keypad-btn action"><i class="fa-solid fa-delete-left"></i></button>
                 </div>
@@ -555,7 +562,7 @@
                 if (loadedLocations) savedLocations.value = JSON.parse(loadedLocations);
             });
 
-            // --- Keypad Functions ---
+            // --- Keypad Functions (Updated for Right Alignment) ---
             const appendDigit = (n) => {
                 if (inputBuffer.value.length >= 6) return;
                 inputBuffer.value += n.toString();
@@ -565,11 +572,26 @@
                     inputBuffer.value = inputBuffer.value.slice(0, -1);
                 }
             };
-            const clearDigits = () => {
-                inputBuffer.value = '';
-            };
+            
+            // 右詰めのためのロジック変更
+            // 6個のボックスに対して、入力文字長に合わせてどこに文字を表示するか計算
             const getDisplayDigit = (i) => {
-                return inputBuffer.value[i - 1] || '';
+                const maxDigits = 6;
+                const currentLength = inputBuffer.value.length;
+                const emptySlots = maxDigits - currentLength;
+                
+                // 例: 2文字入力(currentLength=2)、i(1~6)
+                // emptySlots = 4
+                // i が 1,2,3,4 の時は空
+                // i が 5 の時 -> buffer[0]
+                // i が 6 の時 -> buffer[1]
+                
+                if (i <= emptySlots) {
+                    return '';
+                } else {
+                    const charIndex = i - emptySlots - 1;
+                    return inputBuffer.value[charIndex];
+                }
             };
 
             // --- Save & Storage ---
@@ -895,6 +917,19 @@
             const activeLogs = computed(() => viewingHistoryMode.value ? historyData.value?.logs || [] : logs.value);
             const activeStart = computed(() => viewingHistoryMode.value ? historyData.value?.startMileage || 0 : startMileage.value);
             
+            // ステータス表示のロジック計算
+            const getStatusText = computed(() => {
+                if (lastAction.value === 'arrival') {
+                    // 到着（作業中）の場合: 到着ログの数 = 現在の案件数
+                    const caseNum = logs.value.filter(l => l.type === 'arrival').length;
+                    return `案件${caseNum}を作業中`;
+                } else {
+                    // 移動中の場合: 完了ログ数 + 1 が次の案件数
+                    const finishedCount = logs.value.filter(l => l.type === 'departure').length;
+                    return `案件${finishedCount + 1}へ移動中`;
+                }
+            });
+
             const getLastMileage = computed(() => {
                 const arr = activeLogs.value.filter(l => l.type === 'arrival' && l.mileage);
                 return arr.length ? arr[arr.length - 1].mileage : '---';
@@ -934,7 +969,7 @@
                 vehicleNumber, saveVehicleNumber, startTime, undoStack, undo,
                 
                 // Keypad
-                appendDigit, removeDigit, clearDigits, getDisplayDigit,
+                appendDigit, removeDigit, getDisplayDigit,
 
                 // Modal & Data
                 tempLocation: tempAddress, tempTime,
@@ -947,7 +982,7 @@
                 
                 // Navigation
                 startWork, goToSummary, backToDashboard, saveAndReset, viewHistory, closeSubScreens,
-                groupedLogs, calculateTotalDistance, getLastMileage, copyToClipboard
+                groupedLogs, calculateTotalDistance, getLastMileage, copyToClipboard, getStatusText
             };
         }
     }).mount('#app');
