@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>スマホ日報 - Smart Log Ultimate V3.2</title>
+<title>スマホ日報 - Smart Log Ultimate V3.3</title>
 <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -266,7 +266,7 @@
             </div>
         </div>
 
-        <div v-if="screen === 'dashboard'" class="flex flex-col gap-5 h-full pt-2 pb-6">
+        <div v-if="screen === 'dashboard'" class="flex flex-col gap-5 min-h-full pt-2 pb-10">
             <div class="bg-white p-5 rounded-2xl shadow-sm border-l-8" :class="lastAction === 'arrival' ? 'border-green-500' : 'border-blue-500'">
                 <div class="text-xs font-bold text-gray-500 mb-1">現在の状態</div>
                 <div class="text-xl font-bold text-gray-800 flex items-center gap-3">
@@ -293,7 +293,7 @@
                 </button>
             </div>
 
-            <button @click="goToSummary" class="mt-auto mb-8 bg-gray-800 text-white font-bold py-4 rounded-2xl shadow-lg btn-press text-lg flex items-center justify-center gap-3 flex-shrink-0">
+            <button @click="goToSummary" class="mt-auto bg-gray-800 text-white font-bold py-4 rounded-2xl shadow-lg btn-press text-lg flex items-center justify-center gap-3 flex-shrink-0">
                 <i class="fa-solid fa-flag-checkered"></i> 日報確認
             </button>
         </div>
