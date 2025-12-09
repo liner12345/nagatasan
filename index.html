@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>スマホ日報 - Smart Log Ultimate V3.8</title>
+<title>スマホ日報 - Smart Log Ultimate V3.9</title>
 <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -108,7 +108,16 @@
         background: none;
         -webkit-appearance: none;
     }
-    
+    /* 【修正】時刻入力のズレ対策 */
+    input[type="time"] {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 0; /* パディングをリセット */
+        line-height: normal; /* 行高さをリセット */
+    }
+
     /* 編集モード用の入力スタイル */
     .edit-input {
         width: 100%;
@@ -319,7 +328,8 @@
         </div>
 
         <div v-if="screen === 'summary'" class="flex flex-col gap-4 pb-6">
-            <div class="bg-white rounded-2xl shadow-sm p-4 border-b border-gray-100 flex justify-between items-center sticky top-0 z-20">
+            
+            <div class="bg-white rounded-2xl shadow-md p-4 border-b-2 border-gray-200 flex justify-between items-center sticky top-0 z-40">
                 <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
                     <i class="fa-solid fa-clipboard-check text-blue-600"></i> 
                     {{ viewingHistoryMode ? historyData.dateStr : '本日の日報' }}
@@ -346,20 +356,20 @@
                         </div>
                     </div>
                     
-                    <div class="grid grid-cols-[1fr_30px_1fr] border-t border-blue-400/50 pt-3 items-center">
-                        <div class="text-left">
-                            <div class="text-blue-200 text-xs mb-0.5">開始時刻 / 距離</div>
+                    <div class="grid grid-cols-[1fr_30px_1fr] border-t border-blue-400/50 pt-3 items-end">
+                        <div class="text-left flex flex-col justify-end">
+                            <div class="text-blue-200 text-xs mb-1">開始時刻 / 距離</div>
                             
                             <div v-if="!isEditing">
-                                <div class="text-xs opacity-90 mb-1">
+                                <div class="font-bold text-lg mb-0.5 leading-none">
                                     {{ viewingHistoryMode ? historyData.startTime : startTime }}
                                 </div>
-                                <div class="font-bold text-xl leading-none">
+                                <div class="font-bold text-2xl leading-none">
                                     {{ viewingHistoryMode ? historyData.startMileage : startMileage }} <span class="text-sm font-normal">km</span>
                                 </div>
                             </div>
                             <div v-else class="flex flex-col gap-1">
-                                <input type="time" v-model="editBuffer.startTime" class="text-gray-800 text-xs rounded px-1 py-0.5 bg-white/90 font-bold text-center w-20">
+                                <input type="time" v-model="editBuffer.startTime" class="text-gray-800 text-xs rounded px-1 py-0.5 bg-white/90 font-bold text-center w-24 mb-1">
                                 <div class="flex items-center gap-1">
                                     <input type="number" v-model.number="editBuffer.startMileage" class="text-gray-800 text-sm rounded px-1 py-0.5 bg-white/90 font-bold w-20">
                                     <span class="text-sm">km</span>
@@ -367,11 +377,15 @@
                             </div>
                         </div>
                         
-                        <div class="text-blue-200 text-center text-lg">➜</div>
+                        <div class="text-blue-200 text-center text-lg pb-1">➜</div>
                         
-                        <div class="text-right">
-                            <div class="text-blue-200 text-xs mb-0.5">終了 (最終)</div>
-                            <div class="font-bold text-xl leading-none">
+                        <div class="text-right flex flex-col justify-end">
+                            <div class="text-blue-200 text-xs mb-1">終了 (最終)</div>
+                            <div class="font-bold text-lg mb-0.5 leading-none">
+                                {{ (isEditing ? editBuffer.groups : groupedLogs).length > 0 ? 
+                                   ((isEditing ? editBuffer.groups : groupedLogs).slice(-1)[0].departure?.time || '---') : '---' }}
+                            </div>
+                            <div class="font-bold text-2xl leading-none">
                                 {{ isEditing ? getEditLastMileage : getLastMileage }} <span class="text-sm font-normal">km</span>
                             </div>
                         </div>
@@ -715,16 +729,14 @@
 
             // --- Editing Logic ---
             const enterEditMode = () => {
-                // Determine source data
                 const sourceStartKm = viewingHistoryMode.value ? historyData.value.startMileage : startMileage.value;
                 const sourceStartTime = viewingHistoryMode.value ? historyData.value.startTime : startTime.value;
                 const sourceLogs = viewingHistoryMode.value ? historyData.value.logs : logs.value;
 
-                // Clone data into buffer
                 editBuffer.value = {
                     startMileage: sourceStartKm,
                     startTime: sourceStartTime,
-                    groups: createGroups(sourceLogs) // Use helper to get clean groups
+                    groups: createGroups(sourceLogs) 
                 };
                 isEditing.value = true;
             };
@@ -738,19 +750,16 @@
             const saveEditMode = () => {
                 if(!confirm('変更を保存しますか？')) return;
 
-                // Flatten buffer groups back to logs array
                 const newLogs = [];
                 editBuffer.value.groups.forEach(group => {
                     if(group.arrival) newLogs.push({ ...group.arrival, type: 'arrival' });
                     if(group.departure) newLogs.push({ ...group.departure, type: 'departure' });
                 });
 
-                // Apply changes based on mode
                 if (viewingHistoryMode.value) {
                     historyData.value.startMileage = editBuffer.value.startMileage;
                     historyData.value.startTime = editBuffer.value.startTime;
                     historyData.value.logs = newLogs;
-                    // Recalculate total distance for history item
                     const lastLog = newLogs.filter(l => l.type === 'arrival' && l.mileage).pop();
                     const lastKm = lastLog ? lastLog.mileage : 0;
                     historyData.value.totalDistance = (lastKm > 0) ? (lastKm - editBuffer.value.startMileage) : 0;
@@ -776,7 +785,6 @@
             // --- Computed for Edit Mode Stats ---
             const getEditLastMileage = computed(() => {
                 const groups = editBuffer.value.groups;
-                // Find last group with arrival mileage
                 for (let i = groups.length - 1; i >= 0; i--) {
                     if (groups[i].arrival && groups[i].arrival.mileage) {
                         return groups[i].arrival.mileage;
@@ -834,7 +842,7 @@
                     history: historyList.value,
                     locations: savedLocations.value,
                     vehicleNo: vehicleNumber.value,
-                    version: '3.8'
+                    version: '3.9'
                 };
                 const blob = new Blob([JSON.stringify(backupData, null, 2)], {type: 'application/json'});
                 const url = URL.createObjectURL(blob);
@@ -929,7 +937,7 @@
                             const lat = pos.coords.latitude;
                             const lon = pos.coords.longitude;
                             const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`, {
-                                headers: { 'Accept-Language': 'ja', 'User-Agent': 'SmartLogPro/3.8 (Personal Use)' }
+                                headers: { 'Accept-Language': 'ja', 'User-Agent': 'SmartLogPro/3.9 (Personal Use)' }
                             });
                             if (!res.ok) throw new Error('API Error');
                             const data = await res.json();
@@ -1069,7 +1077,7 @@
             const backToDashboard = () => { screen.value = 'dashboard'; saveData(); };
             
             const closeSubScreens = () => {
-                if(isEditing.value) return; // Prevent closing while editing
+                if(isEditing.value) return; 
                 viewingHistoryMode.value = false;
                 showSettings.value = false;
                 historyData.value = null;
@@ -1119,16 +1127,13 @@
             };
 
             const copyToClipboard = () => {
-                // Ensure we use the latest data
                 const targetLogs = viewingHistoryMode.value ? historyData.value.logs : logs.value;
                 const targetStartKm = viewingHistoryMode.value ? historyData.value.startMileage : startMileage.value;
                 const targetStartTime = viewingHistoryMode.value ? historyData.value.startTime : startTime.value;
                 const targetDate = viewingHistoryMode.value ? historyData.value.dateStr : new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' });
                 
-                // Group them for easier export
                 const exportGroups = createGroups(targetLogs);
                 
-                // Determine end stats
                 let targetEndKm = '---';
                 let targetEndTime = '';
                 const lastLog = targetLogs.length > 0 ? targetLogs[targetLogs.length - 1] : null;
