@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>スマホ日報 - Smart Log Ultimate V3.4</title>
+<title>スマホ日報 - Smart Log Ultimate V3.6</title>
 <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -64,11 +64,12 @@
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         transition: all 0.2s;
     }
-    /* 数字が入っているときだけ強調 */
+    /* 修正: 入力済みボックスのスタイル（青背景を削除し、黒文字・グレー枠へ変更） */
     .digit-box.filled {
-        border-color: #3b82f6;
-        background-color: #eff6ff;
-        color: #1d4ed8;
+        border-color: #9ca3af; /* 枠線を少し濃いグレーにして視認性を確保 */
+        background-color: #ffffff; /* 白背景のまま */
+        color: #111827; /* 完全な黒に近い色 */
+        /* box-shadow等は削除してフラットに */
     }
 
     /* キーパッドのボタン */
@@ -138,7 +139,7 @@
         content: '';
         animation: dots 1.5s steps(4, end) infinite;
         display: inline-block;
-        width: 1.5em; /* 幅を少し調整 */
+        width: 1.5em;
         text-align: left;
     }
     @keyframes dots {
@@ -163,8 +164,9 @@
             <i class="fa-solid fa-truck-fast"></i> 配送日報 Pro
         </h1>
         <div class="flex items-center gap-2">
-            <button v-if="screen === 'dashboard' && undoStack.length > 0" @click="undo" class="text-xs bg-blue-500 hover:bg-blue-400 px-3 py-1.5 rounded-full border border-blue-300 transition-colors flex items-center gap-1 shadow-sm">
-                <i class="fa-solid fa-rotate-left"></i> 戻る
+            <button v-if="screen === 'dashboard'" @click="handleHeaderBack" class="text-xs bg-blue-500 hover:bg-blue-400 px-3 py-1.5 rounded-full border border-blue-300 transition-colors flex items-center gap-1 shadow-sm">
+                <i :class="undoStack.length > 0 ? 'fa-solid fa-rotate-left' : 'fa-solid fa-arrow-left'"></i> 
+                {{ undoStack.length > 0 ? '戻る' : 'トップへ' }}
             </button>
             <button v-if="viewingHistoryMode || showSettings" @click="closeSubScreens" class="text-xs bg-blue-700 hover:bg-blue-800 px-3 py-1.5 rounded-full border border-blue-400 transition-colors">
                 <i class="fa-solid fa-times mr-1"></i>閉じる
@@ -175,12 +177,6 @@
     <main class="scrollable-content bg-gray-50 p-4">
         
         <div v-if="screen === 'start'" class="flex flex-col gap-6 pb-10">
-            <div class="flex justify-end">
-                <button @click="showSettings = true" class="text-xs text-gray-500 font-bold bg-white px-3 py-1.5 rounded-full border border-gray-200 shadow-sm flex items-center gap-1">
-                    <i class="fa-solid fa-gear"></i> データ管理
-                </button>
-            </div>
-
             <div v-if="!showSettings" class="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 text-center animate-slide-in">
                 <h2 class="text-lg font-bold mb-4 text-gray-800">業務開始</h2>
                 
@@ -241,12 +237,15 @@
                 </div>
             </div>
 
-            <div v-if="!showSettings && historyList.length > 0" class="animate-slide-in" style="animation-delay: 0.1s;">
-                <div class="flex justify-between items-end mb-3 px-2">
+            <div v-if="!showSettings" class="animate-slide-in" style="animation-delay: 0.1s;">
+                <div class="flex justify-between items-center mb-3 px-2 mt-4">
                     <h3 class="text-sm font-bold text-gray-400">完了した日報（履歴）</h3>
+                    <button @click="showSettings = true" class="text-xs text-gray-500 font-bold bg-white px-3 py-1.5 rounded-full border border-gray-200 shadow-sm flex items-center gap-1">
+                        <i class="fa-solid fa-gear"></i> データ管理
+                    </button>
                 </div>
                 
-                <div class="min-h-[200px]">
+                <div v-if="historyList.length > 0" class="min-h-[200px]">
                     <div class="space-y-3">
                         <div v-for="(item, idx) in paginatedHistory" :key="idx" @click="viewHistory(item)" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center active:bg-gray-50 transition-colors cursor-pointer relative overflow-hidden">
                             <div class="flex items-center gap-3">
@@ -263,12 +262,15 @@
                             </button>
                         </div>
                     </div>
+                    
+                    <div v-if="totalHistoryPages > 1" class="flex justify-center items-center gap-6 mt-6">
+                        <button @click="currentHistoryPage > 0 ? currentHistoryPage-- : null" :disabled="currentHistoryPage === 0" class="w-10 h-10 rounded-full bg-white border border-gray-200 text-gray-600 shadow-sm flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed btn-press"><i class="fa-solid fa-chevron-left"></i></button>
+                        <span class="text-sm font-bold text-gray-500">{{ currentHistoryPage + 1 }} / {{ totalHistoryPages }}</span>
+                        <button @click="currentHistoryPage < totalHistoryPages - 1 ? currentHistoryPage++ : null" :disabled="currentHistoryPage === totalHistoryPages - 1" class="w-10 h-10 rounded-full bg-white border border-gray-200 text-gray-600 shadow-sm flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed btn-press"><i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
                 </div>
-
-                <div v-if="totalHistoryPages > 1" class="flex justify-center items-center gap-6 mt-6">
-                    <button @click="currentHistoryPage > 0 ? currentHistoryPage-- : null" :disabled="currentHistoryPage === 0" class="w-10 h-10 rounded-full bg-white border border-gray-200 text-gray-600 shadow-sm flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed btn-press"><i class="fa-solid fa-chevron-left"></i></button>
-                    <span class="text-sm font-bold text-gray-500">{{ currentHistoryPage + 1 }} / {{ totalHistoryPages }}</span>
-                    <button @click="currentHistoryPage < totalHistoryPages - 1 ? currentHistoryPage++ : null" :disabled="currentHistoryPage === totalHistoryPages - 1" class="w-10 h-10 rounded-full bg-white border border-gray-200 text-gray-600 shadow-sm flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed btn-press"><i class="fa-solid fa-chevron-right"></i></button>
+                <div v-else class="text-center py-8 text-gray-300 text-xs font-bold">
+                    履歴はありません
                 </div>
             </div>
         </div>
@@ -573,18 +575,10 @@
                 }
             };
             
-            // 右詰めのためのロジック変更
-            // 6個のボックスに対して、入力文字長に合わせてどこに文字を表示するか計算
             const getDisplayDigit = (i) => {
                 const maxDigits = 6;
                 const currentLength = inputBuffer.value.length;
                 const emptySlots = maxDigits - currentLength;
-                
-                // 例: 2文字入力(currentLength=2)、i(1~6)
-                // emptySlots = 4
-                // i が 1,2,3,4 の時は空
-                // i が 5 の時 -> buffer[0]
-                // i が 6 の時 -> buffer[1]
                 
                 if (i <= emptySlots) {
                     return '';
@@ -651,7 +645,7 @@
                 reader.readAsText(file);
             };
 
-            // --- Undo ---
+            // --- Undo & Navigation Logic ---
             const saveStateForUndo = () => {
                 if (undoStack.value.length > 10) undoStack.value.shift();
                 undoStack.value.push({
@@ -668,6 +662,21 @@
                 lastAction.value = prevState.lastAction;
                 startMileage.value = prevState.startMileage;
                 saveData();
+            };
+
+            const handleHeaderBack = () => {
+                if (undoStack.value.length > 0) {
+                    undo();
+                } else {
+                    if (confirm('業務開始を取り消してトップ画面に戻りますか？\n（入力内容はリセットされます）')) {
+                        screen.value = 'start';
+                        inputBuffer.value = ''; 
+                        logs.value = [];
+                        lastAction.value = 'none';
+                        startMileage.value = 0;
+                        saveData();
+                    }
+                }
             };
 
             // --- GPS & Math ---
@@ -917,14 +926,11 @@
             const activeLogs = computed(() => viewingHistoryMode.value ? historyData.value?.logs || [] : logs.value);
             const activeStart = computed(() => viewingHistoryMode.value ? historyData.value?.startMileage || 0 : startMileage.value);
             
-            // ステータス表示のロジック計算
             const getStatusText = computed(() => {
                 if (lastAction.value === 'arrival') {
-                    // 到着（作業中）の場合: 到着ログの数 = 現在の案件数
                     const caseNum = logs.value.filter(l => l.type === 'arrival').length;
                     return `案件${caseNum}を作業中`;
                 } else {
-                    // 移動中の場合: 完了ログ数 + 1 が次の案件数
                     const finishedCount = logs.value.filter(l => l.type === 'departure').length;
                     return `案件${finishedCount + 1}へ移動中`;
                 }
@@ -966,7 +972,7 @@
             return {
                 screen, inputBuffer, loading, loadingText, lastAction, startMileage,
                 historyList, viewingHistoryMode, historyData, showCopyToast, showSettings,
-                vehicleNumber, saveVehicleNumber, startTime, undoStack, undo,
+                vehicleNumber, saveVehicleNumber, startTime, undoStack, undo, handleHeaderBack,
                 
                 // Keypad
                 appendDigit, removeDigit, getDisplayDigit,
