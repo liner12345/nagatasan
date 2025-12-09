@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>スマホ日報 - Smart Log Ultimate V3.6</title>
+<title>スマホ日報 - Smart Log Ultimate V3.7</title>
 <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -64,12 +64,10 @@
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         transition: all 0.2s;
     }
-    /* 修正: 入力済みボックスのスタイル（青背景を削除し、黒文字・グレー枠へ変更） */
     .digit-box.filled {
-        border-color: #9ca3af; /* 枠線を少し濃いグレーにして視認性を確保 */
-        background-color: #ffffff; /* 白背景のまま */
-        color: #111827; /* 完全な黒に近い色 */
-        /* box-shadow等は削除してフラットに */
+        border-color: #9ca3af;
+        background-color: #ffffff;
+        color: #111827;
     }
 
     /* キーパッドのボタン */
@@ -97,29 +95,24 @@
         color: #6b7280;
         font-size: 1.1rem;
     }
-    /* 空白ボタン用 */
     .keypad-spacer {
         height: 52px;
-        visibility: hidden; /* 存在はするが見えない */
+        visibility: hidden;
     }
 
-    /* --- Input Styles (iOS Fixes & PC Cleanups) --- */
+    /* --- Input Styles --- */
     input[type="time"], input[type="text"], input[type="tel"] {
         -webkit-appearance: none;
         appearance: none;
     }
-
-    /* PC: 時計アイコンを削除 */
     input[type="time"]::-webkit-calendar-picker-indicator {
         display: none;
         background: none;
         -webkit-appearance: none;
     }
-
-    /* iOS: 時間入力の垂直位置ズレを修正 */
     input[type="time"] {
-        line-height: normal; /* 重要: iOSでのデフォルト行間をリセット */
-        padding-top: 0.75rem; /* 上下のパディングで強制的に中央配置 */
+        line-height: normal;
+        padding-top: 0.75rem;
         padding-bottom: 0.75rem;
         text-align: center;
         display: block;
@@ -134,7 +127,6 @@
     }
     .animate-slide-in { animation: slideIn 0.3s ease-out forwards; }
     
-    /* 読み込み中アニメーション（小さいドットに変更） */
     .loading-dots::after {
         content: '';
         animation: dots 1.5s steps(4, end) infinite;
@@ -228,8 +220,14 @@
                             <i class="fa-solid fa-upload"></i> バックアップから復元
                         </button>
                     </div>
+                    
+                    <div class="border-t border-gray-100 my-2"></div>
+                    
+                    <button @click="clearLocations" class="w-full bg-red-50 text-red-600 border border-red-200 font-bold py-3 rounded-xl flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-eraser"></i> 配送先履歴(学習)を全削除
+                    </button>
                     <button @click="clearAllHistory" class="w-full bg-red-50 text-red-600 border border-red-200 font-bold py-3 rounded-xl flex items-center justify-center gap-2">
-                        <i class="fa-solid fa-trash"></i> 履歴を全削除
+                        <i class="fa-solid fa-trash"></i> 日報履歴を全削除
                     </button>
                 </div>
                 <div class="mt-6 text-center">
@@ -407,10 +405,13 @@
                     </div>
                 </div>
 
-                <p class="text-xs text-gray-500 mb-4 flex items-start gap-2 bg-gray-50 p-3 rounded-lg leading-relaxed">
-                    <i class="fa-solid fa-map-pin text-red-500 mt-0.5 flex-shrink-0"></i>
-                    {{ tempLocation }}
-                </p>
+                <div class="mb-4 bg-gray-50 p-3 rounded-lg border border-gray-200 flex items-start gap-2">
+                    <i class="fa-solid fa-map-pin text-red-500 mt-3 flex-shrink-0"></i>
+                    <div class="w-full">
+                        <label class="text-[10px] font-bold text-gray-400 block mb-1">住所（修正可能）</label>
+                        <input type="text" v-model="tempLocation" class="w-full bg-transparent text-sm font-bold text-gray-800 border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1" placeholder="住所を入力">
+                    </div>
+                </div>
 
                 <div class="flex justify-between gap-1 mb-4 px-1">
                     <div v-for="i in 6" :key="i" class="digit-box" :class="{ 'filled': getDisplayDigit(i) !== '' }">
@@ -435,7 +436,7 @@
 
     <div v-if="screen === 'departure_check'" class="fixed inset-0 bg-gray-900/60 z-50 overflow-y-auto backdrop-blur-sm">
         <div class="min-h-full flex items-center justify-center p-4">
-            <div class="bg-white w-full max-w-md p-6 rounded-3xl shadow-2xl animate-slide-in flex flex-col my-auto">
+            <div class="bg-white w-full max-w-md p-6 rounded-3xl shadow-2xl animate-slide-in flex flex-col my-auto" @click="showCandidateList = false">
                 <h3 class="text-xl font-bold mb-6 text-gray-800 flex items-center gap-2">
                     <i class="fa-solid fa-check-circle text-orange-500"></i> 完了報告
                 </h3>
@@ -446,9 +447,36 @@
                         <input type="time" v-model="tempDepartureTime" class="h-12 w-full bg-gray-50 border border-gray-300 text-gray-800 text-lg font-bold rounded-xl p-3 appearance-none">
                     </div>
 
-                    <div>
+                    <div class="relative" @click.stop>
                         <label class="block text-xs font-bold text-gray-500 mb-1">配送先名</label>
-                        <input type="text" v-model="tempDestinationName" placeholder="例: 〇〇株式会社" class="h-12 w-full bg-gray-50 border border-gray-300 text-gray-800 font-bold rounded-xl p-3 appearance-none">
+                        <div class="flex gap-2">
+                            <input type="text" v-model="tempDestinationName" placeholder="例: 〇〇株式会社" class="h-12 w-full bg-gray-50 border border-gray-300 text-gray-800 font-bold rounded-xl p-3 appearance-none flex-1">
+                            <button @click="toggleCandidateList" class="w-12 h-12 flex-shrink-0 bg-blue-50 text-blue-600 border border-blue-200 rounded-xl flex items-center justify-center hover:bg-blue-100 transition-colors">
+                                <i class="fa-solid fa-caret-down text-xl"></i>
+                            </button>
+                        </div>
+
+                        <div v-if="showCandidateList" class="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 z-50 max-h-48 overflow-y-auto">
+                            <div v-if="filteredCandidates.length > 0">
+                                <div class="px-3 py-2 bg-gray-50 text-xs font-bold text-gray-400 border-b border-gray-100 flex justify-between items-center">
+                                    <span>近くの履歴から選択</span>
+                                    <button @click="showCandidateList = false" class="text-gray-400"><i class="fa-solid fa-times"></i></button>
+                                </div>
+                                <ul>
+                                    <li v-for="(cand, idx) in filteredCandidates" :key="idx" class="border-b border-gray-50 last:border-0 hover:bg-blue-50 flex items-center justify-between pr-3">
+                                        <button @click="selectCandidate(cand.name)" class="flex-1 text-left p-3 font-bold text-gray-700 text-sm truncate">
+                                            {{ cand.name }}
+                                        </button>
+                                        <button @click="deleteCandidate(cand)" class="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors">
+                                            <i class="fa-solid fa-times"></i>
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div v-else class="p-4 text-center text-xs text-gray-400 font-bold">
+                                近くの履歴はありません
+                            </div>
+                        </div>
                     </div>
 
                     <div>
@@ -528,6 +556,10 @@
             const tempPaymentMethod = ref('現金');
             const tempRemarks = ref('');
             const paymentOptions = ['現金', 'カード', '請求書', 'web'];
+            
+            // Intelligent History Feature
+            const showCandidateList = ref(false);
+            const filteredCandidates = ref([]);
 
             // GPS Intelligence
             const tempLat = ref(null);
@@ -564,7 +596,7 @@
                 if (loadedLocations) savedLocations.value = JSON.parse(loadedLocations);
             });
 
-            // --- Keypad Functions (Updated for Right Alignment) ---
+            // --- Keypad Functions ---
             const appendDigit = (n) => {
                 if (inputBuffer.value.length >= 6) return;
                 inputBuffer.value += n.toString();
@@ -602,6 +634,7 @@
             };
             const updateHistoryStorage = () => localStorage.setItem('nippoHistory_v2', JSON.stringify(historyList.value));
             const saveVehicleNumber = () => localStorage.setItem('nippoVehicleNo', vehicleNumber.value);
+            const saveLocations = () => localStorage.setItem('nippoLocations', JSON.stringify(savedLocations.value));
 
             // --- Backup & Restore ---
             const downloadBackup = () => {
@@ -609,7 +642,7 @@
                     history: historyList.value,
                     locations: savedLocations.value,
                     vehicleNo: vehicleNumber.value,
-                    version: '3.0'
+                    version: '3.7'
                 };
                 const blob = new Blob([JSON.stringify(backupData, null, 2)], {type: 'application/json'});
                 const url = URL.createObjectURL(blob);
@@ -635,6 +668,7 @@
                             if(data.vehicleNo) vehicleNumber.value = data.vehicleNo;
                             updateHistoryStorage();
                             saveVehicleNumber();
+                            saveLocations();
                             alert('復元が完了しました。');
                             showSettings.value = false;
                         }
@@ -705,7 +739,7 @@
                             const lat = pos.coords.latitude;
                             const lon = pos.coords.longitude;
                             const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`, {
-                                headers: { 'Accept-Language': 'ja', 'User-Agent': 'SmartLogPro/3.0 (Personal Use)' }
+                                headers: { 'Accept-Language': 'ja', 'User-Agent': 'SmartLogPro/3.7 (Personal Use)' }
                             });
                             if (!res.ok) throw new Error('API Error');
                             const data = await res.json();
@@ -758,6 +792,7 @@
                 logs.value.push({ 
                     type: 'arrival', 
                     time: tempTime.value, 
+                    // ここが重要：テキストボックスで修正された値(tempAddress)を使用
                     address: tempAddress.value, 
                     mileage: Number(inputBuffer.value) 
                 });
@@ -770,41 +805,82 @@
             const cancelModal = () => {
                 screen.value = 'dashboard';
                 inputBuffer.value = '';
+                showCandidateList.value = false;
             };
 
+            // --- Departure & History Logic ---
             const handleDeparture = () => {
                 tempDepartureTime.value = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
                 tempDestinationName.value = '';
                 tempPaymentMethod.value = '現金';
                 tempRemarks.value = '';
+                showCandidateList.value = false;
 
-                if (tempLat.value && tempLon.value && savedLocations.value.length > 0) {
-                    let nearest = null;
-                    let minDist = 100;
-                    savedLocations.value.forEach(loc => {
-                        const d = getDistance(tempLat.value, tempLon.value, loc.lat, loc.lon);
-                        if (d < minDist) {
-                            minDist = d;
-                            nearest = loc;
+                // 過去の候補を取得しない（ユーザーが▼を押すまで）
+                screen.value = 'departure_check';
+            };
+
+            const toggleCandidateList = () => {
+                showCandidateList.value = !showCandidateList.value;
+                if (showCandidateList.value && tempLat.value && tempLon.value) {
+                    // 半径150m以内の候補を表示 (ユニークな名前のみ)
+                    const nearby = savedLocations.value.filter(loc => 
+                        getDistance(tempLat.value, tempLon.value, loc.lat, loc.lon) < 150
+                    );
+                    // 重複排除（Setを使用）
+                    const seenNames = new Set();
+                    const uniqueCandidates = [];
+                    nearby.forEach(loc => {
+                        if (!seenNames.has(loc.name)) {
+                            seenNames.add(loc.name);
+                            uniqueCandidates.push(loc);
                         }
                     });
-                    if (nearest) tempDestinationName.value = nearest.name;
+                    filteredCandidates.value = uniqueCandidates;
+                } else {
+                    filteredCandidates.value = [];
                 }
-                screen.value = 'departure_check';
+            };
+
+            const selectCandidate = (name) => {
+                tempDestinationName.value = name;
+                showCandidateList.value = false;
+            };
+            
+            const deleteCandidate = (candidate) => {
+                if(!confirm(`履歴「${candidate.name}」を削除しますか？`)) return;
+                // 名前と座標が一致するものを削除（近似値）
+                savedLocations.value = savedLocations.value.filter(loc => 
+                    !(loc.name === candidate.name && 
+                      Math.abs(loc.lat - candidate.lat) < 0.0001 && 
+                      Math.abs(loc.lon - candidate.lon) < 0.0001)
+                );
+                saveLocations();
+                // リスト更新
+                toggleCandidateList(); 
+                showCandidateList.value = true; // トグルで閉じてしまうので再度開く
             };
 
             const confirmDeparture = () => {
                 saveStateForUndo();
+                
+                // --- 履歴保存ロジック（改善版） ---
                 if (tempDestinationName.value && tempLat.value) {
-                    const existingIdx = savedLocations.value.findIndex(loc => 
-                        getDistance(tempLat.value, tempLon.value, loc.lat, loc.lon) < 50
+                    // 同じ場所(100m以内)で、同じ名前があるかチェック
+                    const alreadyExists = savedLocations.value.some(loc => 
+                        loc.name === tempDestinationName.value &&
+                        getDistance(tempLat.value, tempLon.value, loc.lat, loc.lon) < 100
                     );
-                    if (existingIdx >= 0) {
-                        savedLocations.value[existingIdx].name = tempDestinationName.value;
-                    } else {
-                        savedLocations.value.push({ lat: tempLat.value, lon: tempLon.value, name: tempDestinationName.value });
+                    
+                    // 存在しない場合のみ新規追加（上書きせず、追記する）
+                    if (!alreadyExists) {
+                        savedLocations.value.push({ 
+                            lat: tempLat.value, 
+                            lon: tempLon.value, 
+                            name: tempDestinationName.value 
+                        });
+                        saveLocations();
                     }
-                    localStorage.setItem('nippoLocations', JSON.stringify(savedLocations.value));
                 }
 
                 logs.value.push({ 
@@ -859,9 +935,16 @@
                 updateHistoryStorage();
             };
             const clearAllHistory = () => {
-                if(!confirm('【警告】全ての履歴を削除しますか？')) return;
+                if(!confirm('【警告】日報の履歴データを全て削除しますか？\n（復元できません）')) return;
                 historyList.value = [];
                 updateHistoryStorage();
+                showSettings.value = false;
+            };
+            const clearLocations = () => {
+                if(!confirm('【警告】学習した配送先リストを全て削除しますか？\n（次回から候補が出なくなります）')) return;
+                savedLocations.value = [];
+                saveLocations();
+                alert('配送先履歴をリセットしました。');
                 showSettings.value = false;
             };
 
@@ -984,7 +1067,10 @@
 
                 // History & Backup
                 currentHistoryPage, totalHistoryPages, paginatedHistory,
-                downloadBackup, restoreBackup, clearAllHistory, deleteHistoryItem,
+                downloadBackup, restoreBackup, clearAllHistory, deleteHistoryItem, clearLocations,
+                
+                // Intelligent History
+                showCandidateList, toggleCandidateList, selectCandidate, deleteCandidate, filteredCandidates,
                 
                 // Navigation
                 startWork, goToSummary, backToDashboard, saveAndReset, viewHistory, closeSubScreens,
