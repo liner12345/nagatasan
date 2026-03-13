@@ -202,7 +202,7 @@
                         <label class="text-xs font-bold text-gray-400">
                             <i class="fa-solid fa-car"></i> 車両No
                         </label>
-                        <input type="tel" pattern="[0-9]*" v-model="vehicleNumber" maxlength="4" placeholder="0000" class="h-12 bg-gray-50 border border-gray-200 text-gray-800 text-lg font-bold rounded-xl focus:ring-blue-500 focus:border-blue-500 block w-24 text-center shadow-sm" @input="saveVehicleNumber">
+                        <input type="tel" pattern="[0-9]*" v-model="vehicleNumber" maxlength="4" placeholder="0000" class="h-12 bg-gray-50 border border-gray-200 text-gray-800 text-lg font-bold rounded-xl focus:ring-blue-500 focus:border-blue-500 block w-24 text-center shadow-sm" @input="saveVehicleNumber" @focus="moveVehicleCaretToEnd" @click="moveVehicleCaretToEnd" ref="vehicleNumberInput">
                     </div>
                     
                     <div class="flex flex-col items-center gap-1">
@@ -623,7 +623,7 @@
 </div>
 
 <script>
-    const { createApp, ref, onMounted, computed } = Vue;
+    const { createApp, ref, onMounted, computed, nextTick } = Vue;
 
     createApp({
         setup() {
@@ -636,6 +636,7 @@
             const startMileage = ref(0);
             const logs = ref([]);
             const vehicleNumber = ref('');
+            const vehicleNumberInput = ref(null);
             const startTime = ref('');
             const undoStack = ref([]);
             
@@ -664,7 +665,7 @@
             const tempDestinationName = ref('');
             const tempPaymentMethod = ref('現金');
             const tempRemarks = ref('');
-            const paymentOptions = ['現金', 'カード', '請求書', 'web'];
+            const paymentOptions = ['現金', 'カード', '請求書', 'web', '該当なし'];
             
             // Intelligent History Feature
             const showCandidateList = ref(false);
@@ -834,6 +835,14 @@
                 localStorage.setItem('nippoData_pro_v3', JSON.stringify(data));
             };
             const updateHistoryStorage = () => localStorage.setItem('nippoHistory_v2', JSON.stringify(historyList.value));
+            const moveVehicleCaretToEnd = async () => {
+                await nextTick();
+                const inputEl = vehicleNumberInput.value;
+                if (!inputEl || typeof inputEl.setSelectionRange !== 'function') return;
+                const end = (vehicleNumber.value || '').length;
+                inputEl.setSelectionRange(end, end);
+            };
+
             const saveVehicleNumber = () => localStorage.setItem('nippoVehicleNo', vehicleNumber.value);
             const saveLocations = () => localStorage.setItem('nippoLocations', JSON.stringify(savedLocations.value));
 
@@ -942,9 +951,24 @@
                             });
                             if (!res.ok) throw new Error('API Error');
                             const data = await res.json();
-                            const a = data.address;
-                            const formatted = [...new Set([a.province, a.city, a.ward, a.town, a.suburb, a.village, a.neighbourhood, a.road, a.house_number].filter(Boolean))].join('');
-                            resolve({ address: formatted || '住所不明', lat, lon });
+                            const a = data.address || {};
+
+                            const cityStart = a.city || a.town || a.village || a.municipality || a.county || '';
+                            const areaParts = [
+                                a.city_district,
+                                a.ward,
+                                a.suburb,
+                                a.quarter,
+                                a.neighbourhood,
+                                a.block,
+                                a.residential,
+                                a.hamlet,
+                                a.road,
+                                a.house_number,
+                                a.building
+                            ].filter(Boolean);
+                            const formatted = [...new Set([cityStart, ...areaParts].filter(Boolean))].join('');
+                            resolve({ address: formatted || data.display_name?.replace(/^.*?[都道府県]\s*/, '') || '住所不明', lat, lon });
                         } catch (e) { resolve({ address: '住所取得エラー', lat: null, lon: null }); }
                     }, (err) => {
                         clearTimeout(timeoutId);
@@ -1211,7 +1235,7 @@
             return {
                 screen, inputBuffer, loading, loadingText, lastAction, startMileage,
                 historyList, viewingHistoryMode, historyData, showCopyToast, showSettings,
-                vehicleNumber, saveVehicleNumber, startTime, undoStack, undo, handleHeaderBack,
+                vehicleNumber, vehicleNumberInput, moveVehicleCaretToEnd, saveVehicleNumber, startTime, undoStack, undo, handleHeaderBack,
                 
                 // Keypad
                 appendDigit, removeDigit, getDisplayDigit,
