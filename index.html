@@ -217,6 +217,19 @@
                         <input type="time" v-model="startTime" class="h-12 bg-gray-50 border border-gray-200 text-gray-800 text-lg font-bold rounded-xl focus:ring-blue-500 focus:border-blue-500 block w-32 shadow-sm">
                     </div>
                 </div>
+                <div v-if="vehicleNumberHistory.length" class="mb-5 text-left">
+                    <p class="text-[11px] font-bold text-gray-400 mb-2">最近の車両No（タップで入力）</p>
+                    <div class="space-y-2">
+                        <div v-for="item in vehicleNumberHistory" :key="item" class="flex items-center gap-2">
+                            <button @click="selectVehicleNumber(item)" class="flex-1 text-left bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold text-gray-700 transition-colors">
+                                {{ item }}
+                            </button>
+                            <button @click="removeVehicleNumberFromHistory(item)" class="w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-500 text-[10px] border border-gray-200 transition-colors" aria-label="車両No履歴を削除">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
 
                 <p class="text-gray-500 mb-2 text-xs font-bold">出発時のメーター距離</p>
                 
@@ -641,6 +654,7 @@
             const startMileage = ref(0);
             const logs = ref([]);
             const vehicleNumber = ref('');
+            const vehicleNumberHistory = ref([]);
             const vehicleNumberInput = ref(null);
             const startTime = ref('');
             const undoStack = ref([]);
@@ -706,6 +720,17 @@
 
                 const savedVehicleNo = localStorage.getItem('nippoVehicleNo');
                 if (savedVehicleNo) vehicleNumber.value = savedVehicleNo;
+                const savedVehicleNoHistory = localStorage.getItem('nippoVehicleNoHistory');
+                if (savedVehicleNoHistory) {
+                    try {
+                        const parsedHistory = JSON.parse(savedVehicleNoHistory);
+                        if (Array.isArray(parsedHistory)) {
+                            vehicleNumberHistory.value = parsedHistory
+                                .map(v => String(v || '').replace(/\D/g, '').slice(0, 4))
+                                .filter(Boolean);
+                        }
+                    } catch (e) { console.error('Vehicle history corrupted, reset'); }
+                }
 
                 const loadedLocations = localStorage.getItem('nippoLocations');
                 if (loadedLocations) savedLocations.value = JSON.parse(loadedLocations);
@@ -849,6 +874,24 @@
             };
 
             const saveVehicleNumber = () => localStorage.setItem('nippoVehicleNo', vehicleNumber.value);
+            const saveVehicleNumberHistory = () => localStorage.setItem('nippoVehicleNoHistory', JSON.stringify(vehicleNumberHistory.value));
+            const addVehicleNumberToHistory = (no) => {
+                const normalized = String(no || '').replace(/\D/g, '').slice(0, 4);
+                if (!normalized) return;
+                const withoutCurrent = vehicleNumberHistory.value.filter(item => item !== normalized);
+                vehicleNumberHistory.value = [normalized, ...withoutCurrent].slice(0, 8);
+                saveVehicleNumberHistory();
+            };
+            const selectVehicleNumber = async (no) => {
+                vehicleNumber.value = String(no || '').replace(/\D/g, '').slice(0, 4);
+                saveVehicleNumber();
+                addVehicleNumberToHistory(vehicleNumber.value);
+                await moveVehicleCaretToEnd();
+            };
+            const removeVehicleNumberFromHistory = (no) => {
+                vehicleNumberHistory.value = vehicleNumberHistory.value.filter(item => item !== no);
+                saveVehicleNumberHistory();
+            };
             const saveLocations = () => localStorage.setItem('nippoLocations', JSON.stringify(savedLocations.value));
 
             // --- Backup & Restore ---
@@ -857,6 +900,7 @@
                     history: historyList.value,
                     locations: savedLocations.value,
                     vehicleNo: vehicleNumber.value,
+                    vehicleNoHistory: vehicleNumberHistory.value,
                     version: '3.9'
                 };
                 const blob = new Blob([JSON.stringify(backupData, null, 2)], {type: 'application/json'});
@@ -881,8 +925,15 @@
                             if(data.history) historyList.value = data.history;
                             if(data.locations) savedLocations.value = data.locations;
                             if(data.vehicleNo) vehicleNumber.value = data.vehicleNo;
+                            if(Array.isArray(data.vehicleNoHistory)) {
+                                vehicleNumberHistory.value = data.vehicleNoHistory
+                                    .map(v => String(v || '').replace(/\D/g, '').slice(0, 4))
+                                    .filter(Boolean)
+                                    .slice(0, 8);
+                            }
                             updateHistoryStorage();
                             saveVehicleNumber();
+                            saveVehicleNumberHistory();
                             saveLocations();
                             alert('復元が完了しました。');
                             showSettings.value = false;
@@ -990,6 +1041,7 @@
                 inputBuffer.value = '';
                 lastAction.value = 'start';
                 screen.value = 'dashboard';
+                addVehicleNumberToHistory(vehicleNumber.value);
                 saveData();
             };
 
@@ -1240,7 +1292,7 @@
             return {
                 screen, inputBuffer, loading, loadingText, lastAction, startMileage,
                 historyList, viewingHistoryMode, historyData, showCopyToast, showSettings,
-                vehicleNumber, vehicleNumberInput, moveVehicleCaretToEnd, saveVehicleNumber, startTime, undoStack, undo, handleHeaderBack,
+                vehicleNumber, vehicleNumberHistory, vehicleNumberInput, moveVehicleCaretToEnd, saveVehicleNumber, selectVehicleNumber, removeVehicleNumberFromHistory, startTime, undoStack, undo, handleHeaderBack,
                 
                 // Keypad
                 appendDigit, removeDigit, getDisplayDigit,
