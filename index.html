@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>スマホ日報 - Smart Log Ultimate V3.9</title>
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="icon" type="image/png" sizes="32x32" href="./favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="./favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+<div id="app" v-cloak>
+
+    <header class="bg-blue-600 text-white p-4 shadow-md z-30 flex-shrink-0 flex justify-between items-center h-14 safe-top">
+        <h1 class="text-lg font-bold flex items-center gap-2">
+            <i class="fa-solid fa-truck-fast"></i> 配送日報 Pro
+        </h1>
+        <div class="flex items-center gap-2">
+            <button v-if="screen === 'dashboard'" @click="handleHeaderBack" class="text-xs bg-blue-500 hover:bg-blue-400 px-3 py-1.5 rounded-full border border-blue-300 transition-colors flex items-center gap-1 shadow-sm">
+                <i :class="undoStack.length > 0 ? 'fa-solid fa-rotate-left' : 'fa-solid fa-arrow-left'"></i> 
+                {{ undoStack.length > 0 ? '戻る' : 'トップへ' }}
+            </button>
+            
+            <button v-if="(viewingHistoryMode || showSettings) && !isEditing" @click="closeSubScreens" class="text-xs bg-blue-700 hover:bg-blue-800 px-3 py-1.5 rounded-full border border-blue-400 transition-colors">
+                <i class="fa-solid fa-times mr-1"></i>閉じる
+            </button>
+        </div>
+    </header>
+
+    <main class="scrollable-content bg-gray-50 p-4">
+        
+        <div v-if="screen === 'start'" class="flex flex-col gap-6 pb-10">
+            <div v-if="!showSettings" class="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 text-center animate-slide-in">
+                <h2 class="text-lg font-bold mb-4 text-gray-800">業務開始</h2>
+                
+                <div class="mb-5 flex justify-center gap-3">
+                    <div class="flex flex-col items-center gap-1">
+                        <label class="text-xs font-bold text-gray-400">
+                            <i class="fa-solid fa-car"></i> 車両No
+                        </label>
+                        <input type="tel" pattern="[0-9]*" v-model="vehicleNumber" maxlength="4" placeholder="0000" class="h-12 bg-gray-50 border border-gray-200 text-gray-800 text-lg font-bold rounded-xl focus:ring-blue-500 focus:border-blue-500 block w-24 text-center shadow-sm" @input="saveVehicleNumber" @focus="moveVehicleCaretToEnd" @click="moveVehicleCaretToEnd" ref="vehicleNumberInput">
+                    </div>
+                    
+                    <div class="flex flex-col items-center gap-1">
+                        <label class="text-xs font-bold text-gray-400">
+                            <i class="fa-regular fa-clock"></i> 開始時刻
+                        </label>
+                        <input type="time" v-model="startTime" class="h-12 bg-gray-50 border border-gray-200 text-gray-800 text-lg font-bold rounded-xl focus:ring-blue-500 focus:border-blue-500 block w-32 shadow-sm">
+                    </div>
+                </div>
+                <div v-if="vehicleNumberHistory.length" class="mb-5 text-left">
+                    <p class="text-[11px] font-bold text-gray-400 mb-2">最近の車両No（タップで入力）</p>
+                    <div class="space-y-2">
+                        <div v-for="item in vehicleNumberHistory" :key="item" class="flex items-center gap-2">
+                            <button @click="selectVehicleNumber(item)" class="flex-1 text-left bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold text-gray-700 transition-colors">
+                                {{ item }}
+                            </button>
+                            <button @click="removeVehicleNumberFromHistory(item)" class="w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-500 text-[10px] border border-gray-200 transition-colors" aria-label="車両No履歴を削除">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <p class="text-gray-500 mb-2 text-xs font-bold">出発時のメーター距離</p>
+                
+                <div class="flex justify-between gap-1 mb-6 px-1">
+                    <div v-for="i in 6" :key="i" class="digit-box" :class="{ 'filled': getDisplayDigit(i) !== '' }">
+                        {{ getDisplayDigit(i) }}
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-3 mb-6">
+                    <button v-for="n in [1,2,3,4,5,6,7,8,9]" :key="n" @click="appendDigit(n)" class="keypad-btn">{{ n }}</button>
+                    <div class="keypad-spacer"></div> 
+                    <button @click="appendDigit(0)" class="keypad-btn">0</button>
+                    <button @click="removeDigit" class="keypad-btn action"><i class="fa-solid fa-delete-left"></i></button>
+                </div>
+
+                <button @click="startWork" :disabled="inputBuffer.length === 0" class="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-bold py-4 rounded-2xl shadow-lg btn-press text-lg transition-all">
+                    決定して開始
+                </button>
+            </div>
+
+            <div v-if="showSettings" class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 animate-slide-in">
+                <h3 class="text-lg font-bold mb-4 flex items-center gap-2"><i class="fa-solid fa-database"></i> データ管理</h3>
+                <div class="space-y-4">
+                    <button @click="downloadBackup" class="w-full bg-green-50 text-green-700 border border-green-200 font-bold py-3 rounded-xl flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-download"></i> データをバックアップ保存
+                    </button>
+                    <div class="relative">
+                        <input type="file" ref="fileInput" @change="restoreBackup" accept=".json" class="hidden">
+                        <button @click="$refs.fileInput.click()" class="w-full bg-orange-50 text-orange-700 border border-orange-200 font-bold py-3 rounded-xl flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-upload"></i> バックアップから復元
+                        </button>
+                    </div>
+                    <div class="border-t border-gray-100 my-2"></div>
+                    <button @click="clearLocations" class="w-full bg-red-50 text-red-600 border border-red-200 font-bold py-3 rounded-xl flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-eraser"></i> 配送先履歴(学習)を全削除
+                    </button>
+                    <button @click="clearAllHistory" class="w-full bg-red-50 text-red-600 border border-red-200 font-bold py-3 rounded-xl flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-trash"></i> 日報履歴を全削除
+                    </button>
+                </div>
+                <div class="mt-6 text-center">
+                    <button @click="showSettings = false" class="text-gray-500 font-bold underline">戻る</button>
+                </div>
+            </div>
+
+            <div v-if="!showSettings" class="animate-slide-in" style="animation-delay: 0.1s;">
+                <div class="flex justify-between items-center mb-3 px-2 mt-4">
+                    <h3 class="text-sm font-bold text-gray-400">完了した日報（履歴）</h3>
+                    <button @click="showSettings = true" class="text-xs text-gray-500 font-bold bg-white px-3 py-1.5 rounded-full border border-gray-200 shadow-sm flex items-center gap-1">
+                        <i class="fa-solid fa-gear"></i> データ管理
+                    </button>
+                </div>
+                
+                <div v-if="historyList.length > 0" class="min-h-[200px]">
+                    <div class="space-y-3">
+                        <div v-for="(item, idx) in paginatedHistory" :key="idx" @click="viewHistory(item)" class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center active:bg-gray-50 transition-colors cursor-pointer relative overflow-hidden">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 flex-shrink-0">
+                                    <i class="fa-solid fa-file-lines"></i>
+                                </div>
+                                <div>
+                                    <div class="font-bold text-gray-800">{{ item.dateStr }}</div>
+                                    <div class="text-xs text-gray-400">走行: {{ item.totalDistance }} km / 案件: {{ item.logs.filter(l => l.type === 'arrival').length }}件</div>
+                                </div>
+                            </div>
+                            <button @click.stop="deleteHistoryItem(item)" class="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 text-red-500 border border-red-100 btn-press ml-2">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div v-if="totalHistoryPages > 1" class="flex justify-center items-center gap-6 mt-6">
+                        <button @click="currentHistoryPage > 0 ? currentHistoryPage-- : null" :disabled="currentHistoryPage === 0" class="w-10 h-10 rounded-full bg-white border border-gray-200 text-gray-600 shadow-sm flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed btn-press"><i class="fa-solid fa-chevron-left"></i></button>
+                        <span class="text-sm font-bold text-gray-500">{{ currentHistoryPage + 1 }} / {{ totalHistoryPages }}</span>
+                        <button @click="currentHistoryPage < totalHistoryPages - 1 ? currentHistoryPage++ : null" :disabled="currentHistoryPage === totalHistoryPages - 1" class="w-10 h-10 rounded-full bg-white border border-gray-200 text-gray-600 shadow-sm flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed btn-press"><i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                </div>
+                <div v-else class="text-center py-8 text-gray-300 text-xs font-bold">
+                    履歴はありません
+                </div>
+            </div>
+        </div>
+
+        <div v-if="screen === 'dashboard'" class="flex flex-col gap-5 min-h-full pt-2 pb-10">
+            <div class="bg-white p-5 rounded-2xl shadow-sm border-l-8" :class="lastAction === 'arrival' ? 'border-green-500' : 'border-blue-500'">
+                <div class="text-xs font-bold text-gray-500 mb-1">現在の状態</div>
+                <div class="text-xl font-bold text-gray-800 flex items-center gap-3">
+                    <i v-if="lastAction === 'arrival'" class="fa-solid fa-box-open text-green-500"></i>
+                    <i v-else class="fa-solid fa-truck text-blue-500"></i>
+                    <span class="loading-dots">
+                        {{ getStatusText }}
+                    </span>
+                </div>
+            </div>
+
+            <div class="flex-1 flex flex-col gap-4 justify-center my-2">
+                <button @click="handleArrival" :disabled="lastAction === 'arrival'" class="flex-1 bg-green-500 disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none text-white rounded-3xl shadow-md flex flex-col items-center justify-center gap-2 p-4 btn-press transition-all border-b-4 border-green-700 disabled:border-transparent">
+                    <i class="fa-solid fa-location-dot text-4xl mb-1"></i>
+                    <span class="text-2xl font-bold">到着</span>
+                    <span class="text-xs opacity-90 font-bold" v-if="lastAction !== 'arrival'">住所・時刻を記録</span>
+                    <span class="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-full" v-else>到着済み</span>
+                </button>
+                <button @click="handleDeparture" :disabled="lastAction !== 'arrival'" class="flex-1 bg-orange-500 disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none text-white rounded-3xl shadow-md flex flex-col items-center justify-center gap-2 p-4 btn-press transition-all border-b-4 border-orange-700 disabled:border-transparent">
+                    <i class="fa-solid fa-check text-4xl mb-1 ml-2"></i>
+                    <span class="text-2xl font-bold">完了</span>
+                    <span class="text-xs opacity-90 font-bold" v-if="lastAction === 'arrival'">次の目的地へ</span>
+                    <span class="text-xs font-bold text-orange-600 bg-orange-100 px-2 py-1 rounded-full" v-else>未到着</span>
+                </button>
+            </div>
+
+            <button @click="goToSummary" class="mt-auto bg-gray-800 text-white font-bold py-4 rounded-2xl shadow-lg btn-press text-lg flex items-center justify-center gap-3 flex-shrink-0">
+                <i class="fa-solid fa-flag-checkered"></i> 日報確認
+            </button>
+        </div>
+
+        <div v-if="screen === 'summary'" class="flex flex-col gap-4 pb-6">
+            
+            <div class="bg-white rounded-2xl shadow-md p-4 border-b-2 border-gray-200 flex justify-between items-center sticky top-0 z-40">
+                <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                    <i class="fa-solid fa-clipboard-check text-blue-600"></i> 
+                    {{ viewingHistoryMode ? historyData.dateStr : '本日の日報' }}
+                </h2>
+                <div class="flex items-center gap-3">
+                    <button @click="isEditing ? saveEditMode() : enterEditMode()" 
+                            class="text-xs font-bold px-3 py-1.5 rounded-full border shadow-sm transition-colors flex items-center gap-1"
+                            :class="isEditing ? 'bg-green-500 text-white border-green-600' : 'bg-white text-gray-600 border-gray-200'">
+                        <i :class="isEditing ? 'fa-solid fa-save' : 'fa-solid fa-pen'"></i>
+                        {{ isEditing ? '保存' : '編集' }}
+                    </button>
+                    <button v-if="isEditing" @click="cancelEditMode" class="text-xs text-red-500 font-bold underline">中止</button>
+                    <button v-if="!viewingHistoryMode && !isEditing" @click="backToDashboard" class="text-sm text-gray-500 font-bold underline">戻る</button>
+                </div>
+            </div>
+            
+            <div class="space-y-6 px-1">
+                <div class="bg-gradient-to-br from-blue-500 to-blue-600 p-5 rounded-2xl text-white shadow-lg">
+                    <div class="flex justify-between items-end mb-4">
+                        <div class="text-blue-100 text-xs font-bold">総走行距離</div>
+                        <div class="text-3xl font-bold">
+                            {{ isEditing ? calculateEditTotalDistance : calculateTotalDistance }} 
+                            <span class="text-base font-normal">km</span>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-[1fr_30px_1fr] border-t border-blue-400/50 pt-3 items-end">
+                        <div class="text-left flex flex-col justify-end">
+                            <div class="text-blue-200 text-xs mb-1">開始時刻 / 距離</div>
+                            
+                            <div v-if="!isEditing">
+                                <div class="font-bold text-lg mb-0.5 leading-none">
+                                    {{ viewingHistoryMode ? historyData.startTime : startTime }}
+                                </div>
+                                <div class="font-bold text-2xl leading-none">
+                                    {{ viewingHistoryMode ? historyData.startMileage : startMileage }} <span class="text-sm font-normal">km</span>
+                                </div>
+                            </div>
+                            <div v-else class="flex flex-col gap-1">
+                                <input type="time" v-model="editBuffer.startTime" class="text-gray-800 text-xs rounded px-1 py-0.5 bg-white/90 font-bold text-center w-24 mb-1">
+                                <div class="flex items-center gap-1">
+                                    <input type="number" v-model.number="editBuffer.startMileage" class="text-gray-800 text-sm rounded px-1 py-0.5 bg-white/90 font-bold w-20">
+                                    <span class="text-sm">km</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="text-blue-200 text-center text-lg pb-1">➜</div>
+                        
+                        <div class="text-right flex flex-col justify-end">
+                            <div class="text-blue-200 text-xs mb-1">終了 (最終)</div>
+                            <div class="font-bold text-lg mb-0.5 leading-none">
+                                {{ (isEditing ? editBuffer.groups : groupedLogs).length > 0 ? 
+                                   ((isEditing ? editBuffer.groups : groupedLogs).slice(-1)[0].departure?.time || '---') : '---' }}
+                            </div>
+                            <div class="font-bold text-2xl leading-none">
+                                {{ isEditing ? getEditLastMileage : getLastMileage }} <span class="text-sm font-normal">km</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <div v-for="(group, index) in (isEditing ? editBuffer.groups : groupedLogs)" :key="index" class="relative pl-6 pb-6 border-l-2 border-gray-100 last:border-0 last:pb-0 group">
+                        <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-100 border-2 border-blue-500 z-10"></div>
+                        
+                        <div class="mb-2 flex justify-between items-center">
+                            <span class="text-xs font-bold text-gray-400 mr-2">案件 #{{ index + 1 }}</span>
+                            <button v-if="isEditing" @click="removeGroupFromBuffer(index)" class="bg-red-50 text-red-500 p-1.5 rounded-full hover:bg-red-100 transition-colors" title="この案件を削除">
+                                <i class="fa-solid fa-trash-can text-sm"></i>
+                            </button>
+                        </div>
+
+                        <div v-if="group.arrival" class="bg-white border border-gray-100 rounded-xl p-4 shadow-sm mb-2 relative">
+                            <template v-if="!isEditing">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="font-bold text-lg text-gray-800">{{ group.arrival.time }} <span class="text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded ml-1">到着</span></span>
+                                    <span class="font-mono font-bold text-blue-600">{{ group.arrival.mileage }} km</span>
+                                </div>
+                                <div class="text-sm text-gray-600 leading-relaxed break-words bg-gray-50 p-2 rounded">{{ group.arrival.address }}</div>
+                            </template>
+                            <template v-else>
+                                <div class="grid grid-cols-2 gap-2 mb-2">
+                                    <div>
+                                        <label class="edit-label">到着時刻</label>
+                                        <input type="time" v-model="group.arrival.time" class="edit-input text-center">
+                                    </div>
+                                    <div>
+                                        <label class="edit-label">到着距離(km)</label>
+                                        <input type="number" v-model.number="group.arrival.mileage" class="edit-input text-right">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="edit-label">住所</label>
+                                    <input type="text" v-model="group.arrival.address" class="edit-input">
+                                </div>
+                            </template>
+                        </div>
+
+                        <div v-if="group.departure" class="bg-orange-50 border border-orange-100 rounded-xl p-4 shadow-sm ml-4 relative">
+                            <div class="absolute -left-6 top-4 text-gray-300 text-xl"><i class="fa-solid fa-arrow-turn-up fa-rotate-90"></i></div>
+                            
+                            <template v-if="!isEditing">
+                                <div class="flex items-start gap-2 mb-2">
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-xs font-bold text-orange-400 mb-0.5">配送先</div>
+                                        <div class="font-bold text-gray-800 break-words">{{ group.departure.destination || '（未入力）' }}</div>
+                                    </div>
+                                    <div class="text-right flex-shrink-0 whitespace-nowrap">
+                                        <span class="font-bold text-lg text-gray-800 block">{{ group.departure.time }}</span>
+                                        <span class="text-xs bg-orange-200 text-orange-700 px-2 py-0.5 rounded inline-block mt-1">完了</span>
+                                    </div>
+                                </div>
+                                <div class="flex gap-2 mb-1">
+                                    <span class="text-xs font-bold bg-white border border-orange-200 text-orange-600 px-2 py-1 rounded">
+                                        <i class="fa-solid fa-yen-sign mr-1"></i>{{ group.departure.payment }}
+                                    </span>
+                                </div>
+                                <div v-if="group.departure.remarks" class="text-sm text-gray-600 mt-2 border-t border-orange-200/50 pt-2">
+                                    <i class="fa-regular fa-comment-dots text-orange-300 mr-1"></i> {{ group.departure.remarks }}
+                                </div>
+                            </template>
+
+                            <template v-else>
+                                <div class="mb-2">
+                                    <label class="edit-label">完了時刻</label>
+                                    <input type="time" v-model="group.departure.time" class="edit-input text-center mb-2">
+                                    
+                                    <label class="edit-label">配送先名</label>
+                                    <input type="text" v-model="group.departure.destination" class="edit-input mb-2">
+                                    
+                                    <label class="edit-label">支払方法</label>
+                                    <select v-model="group.departure.payment" class="edit-input mb-2 appearance-none">
+                                        <option v-for="opt in paymentOptions" :key="opt" :value="opt">{{ opt }}</option>
+                                    </select>
+                                    
+                                    <label class="edit-label">備考</label>
+                                    <input type="text" v-model="group.departure.remarks" class="edit-input">
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-3 mt-4" v-if="!isEditing">
+                <button @click="copyToClipboard" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-2xl shadow-md btn-press flex items-center justify-center gap-2 transition-colors">
+                    <i class="fa-solid fa-file-excel text-xl"></i>
+                    {{ showCopyToast ? 'コピーしました！' : 'Excel転記用データをコピー' }}
+                </button>
+
+                <button v-if="!viewingHistoryMode" @click="saveAndReset" class="w-full bg-gray-800 hover:bg-gray-900 text-white font-bold py-3.5 rounded-2xl shadow-xl btn-press flex items-center justify-center gap-2 transition-colors">
+                    <i class="fa-solid fa-check-double"></i> 業務完了してトップへ戻る
+                </button>
+            </div>
+            
+            <div class="mt-4 text-center text-xs text-gray-400 font-bold" v-else>
+                <i class="fa-solid fa-circle-info mr-1"></i> 保存ボタンを押すと変更が確定します
+            </div>
+        </div>
+
+    </main>
+
+    <div v-if="screen === 'mileage_check'" class="fixed inset-0 bg-gray-900/60 z-50 overflow-y-auto backdrop-blur-sm">
+        <div class="min-h-full flex items-center justify-center p-4">
+            <div class="bg-white w-full max-w-md p-6 rounded-3xl shadow-2xl animate-slide-in flex flex-col my-auto">
+                <h3 class="text-xl font-bold mb-2 text-gray-800">到着時の距離</h3>
+                
+                <div class="mb-4 flex justify-center">
+                    <div class="bg-gray-50 px-4 py-2 rounded-xl border border-gray-200 flex items-center gap-3">
+                        <label class="text-xs font-bold text-gray-500"><i class="fa-regular fa-clock"></i> 到着</label>
+                        <input type="time" v-model="tempTime" class="bg-white border border-gray-300 text-gray-800 font-bold rounded-lg p-1 text-center appearance-none w-28 h-10">
+                    </div>
+                </div>
+
+                <div class="mb-4 bg-gray-50 p-3 rounded-lg border border-gray-200 flex items-start gap-2">
+                    <i class="fa-solid fa-map-pin text-red-500 mt-3 flex-shrink-0"></i>
+                    <div class="w-full">
+                        <label class="text-[10px] font-bold text-gray-400 block mb-1">住所（修正可能）</label>
+                        <input type="text" v-model="tempAddress" class="w-full bg-transparent text-sm font-bold text-gray-800 border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1" placeholder="住所を入力">
+                    </div>
+                </div>
+
+                <div class="flex justify-between gap-1 mb-4 px-1">
+                    <div v-for="i in 6" :key="i" class="digit-box" :class="{ 'filled': getDisplayDigit(i) !== '' }">
+                        {{ getDisplayDigit(i) }}
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-3 mb-6">
+                    <button v-for="n in [1,2,3,4,5,6,7,8,9]" :key="n" @click="appendDigit(n)" class="keypad-btn">{{ n }}</button>
+                    <div class="keypad-spacer"></div>
+                    <button @click="appendDigit(0)" class="keypad-btn">0</button>
+                    <button @click="removeDigit" class="keypad-btn action"><i class="fa-solid fa-delete-left"></i></button>
+                </div>
+
+                <div class="flex gap-3">
+                    <button @click="cancelModal" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-600 font-bold py-4 rounded-2xl">戻る</button>
+                    <button @click="confirmArrival" :disabled="inputBuffer.length === 0" class="flex-[2] bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-bold py-4 rounded-2xl shadow-lg btn-press text-xl">決定</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div v-if="screen === 'departure_check'" class="fixed inset-0 bg-gray-900/60 z-50 overflow-y-auto backdrop-blur-sm">
+        <div class="min-h-full flex items-center justify-center p-4">
+            <div class="bg-white w-full max-w-md p-6 rounded-3xl shadow-2xl animate-slide-in flex flex-col my-auto" @click="showCandidateList = false">
+                <h3 class="text-xl font-bold mb-6 text-gray-800 flex items-center gap-2">
+                    <i class="fa-solid fa-check-circle text-orange-500"></i> 完了報告
+                </h3>
+
+                <div class="space-y-4 mb-8">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">完了時刻</label>
+                        <input type="time" v-model="tempDepartureTime" class="h-12 w-full bg-gray-50 border border-gray-300 text-gray-800 text-lg font-bold rounded-xl p-3 appearance-none">
+                    </div>
+
+                    <div class="relative" @click.stop>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">配送先名</label>
+                        <div class="flex gap-2">
+                            <input type="text" v-model="tempDestinationName" placeholder="例: 〇〇株式会社" class="h-12 w-full bg-gray-50 border border-gray-300 text-gray-800 font-bold rounded-xl p-3 appearance-none flex-1">
+                            <button @click="toggleCandidateList" class="w-12 h-12 flex-shrink-0 bg-blue-50 text-blue-600 border border-blue-200 rounded-xl flex items-center justify-center hover:bg-blue-100 transition-colors">
+                                <i class="fa-solid fa-caret-down text-xl"></i>
+                            </button>
+                        </div>
+
+                        <div v-if="showCandidateList" class="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 z-50 max-h-48 overflow-y-auto">
+                            <div v-if="filteredCandidates.length > 0">
+                                <div class="px-3 py-2 bg-gray-50 text-xs font-bold text-gray-400 border-b border-gray-100 flex justify-between items-center">
+                                    <span>近くの履歴から選択</span>
+                                    <button @click="showCandidateList = false" class="text-gray-400"><i class="fa-solid fa-times"></i></button>
+                                </div>
+                                <ul>
+                                    <li v-for="(cand, idx) in filteredCandidates" :key="idx" class="border-b border-gray-50 last:border-0 hover:bg-blue-50 flex items-center justify-between pr-3">
+                                        <button @click="selectCandidate(cand.name)" class="flex-1 text-left p-3 font-bold text-gray-700 text-sm truncate">
+                                            {{ cand.name }}
+                                        </button>
+                                        <button @click="deleteCandidate(cand)" class="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors">
+                                            <i class="fa-solid fa-times"></i>
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div v-else class="p-4 text-center text-xs text-gray-400 font-bold">
+                                近くの履歴はありません
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">支払い方法</label>
+                        <div class="grid grid-cols-4 gap-2">
+                            <button v-for="opt in paymentOptions" :key="opt" @click="tempPaymentMethod = opt" 
+                                class="py-2 rounded-lg text-sm font-bold border transition-all"
+                                :class="tempPaymentMethod === opt ? 'bg-blue-500 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'">
+                                {{ opt }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-1">備考（任意）</label>
+                        <input type="text" v-model="tempRemarks" placeholder="メモがあれば入力" class="h-12 w-full bg-gray-50 border border-gray-300 text-gray-800 rounded-xl p-3 appearance-none">
+                    </div>
+                </div>
+
+                <div class="flex gap-3">
+                    <button @click="cancelModal" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-600 font-bold py-4 rounded-2xl">戻る</button>
+                    <button @click="confirmDeparture" class="flex-[2] bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 rounded-2xl shadow-lg btn-press text-xl">
+                        完了
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div v-if="loading" class="fixed inset-0 bg-gray-900/40 z-[60] flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-white p-5 rounded-2xl shadow-xl flex items-center gap-3">
+            <i class="fa-solid fa-circle-notch fa-spin text-2xl text-blue-600"></i>
+            <span class="font-bold text-gray-700">{{ loadingText }}</span>
+        </div>
+    </div>
+
+    <transition name="toast">
+        <div v-if="showCopyToast" class="fixed top-20 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full shadow-2xl z-50 text-sm font-bold flex items-center gap-2 w-max">
+            <i class="fa-solid fa-check text-green-400"></i> クリップボードにコピーしました
+        </div>
+    </transition>
+
+</div>
+
+<script src="./app.js"></script>
+</body>
+</html>
