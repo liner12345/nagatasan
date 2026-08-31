@@ -612,6 +612,7 @@ createApp({
             if(arrivalLogs.length) targetEndKm = arrivalLogs[arrivalLogs.length - 1].mileage;
 
             let data = [];
+            data.push('FORMAT::NAGATASAN-EXPORT-1');
             data.push(`DATE::${targetDate}`);
             data.push(`START_KM::${targetStartKm}`);
             data.push(`END_KM::${targetEndKm}`);
