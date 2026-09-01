@@ -50,6 +50,7 @@ createApp({
         // GPS Intelligence
         const tempLat = ref(null);
         const tempLon = ref(null);
+        const tempAccuracy = ref(null);
         const savedLocations = ref([]);
 
         // --- Initialization ---
@@ -375,46 +376,96 @@ createApp({
             return R * c;
         };
 
-        const getCurrentLocation = () => {
-            return new Promise((resolve) => {
-                if (!navigator.geolocation) { resolve({ address: '位置情報非対応', lat: null, lon: null }); return; }
-                const timeoutId = setTimeout(() => {
-                    resolve({ address: '取得タイムアウト', lat: null, lon: null });
-                }, 10000); 
-                navigator.geolocation.getCurrentPosition(async (pos) => {
-                    clearTimeout(timeoutId);
-                    try {
-                        const lat = pos.coords.latitude;
-                        const lon = pos.coords.longitude;
-                        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`, {
-                            headers: { 'Accept-Language': 'ja', 'User-Agent': 'SmartLogPro/3.9 (Personal Use)' }
-                        });
-                        if (!res.ok) throw new Error('API Error');
-                        const data = await res.json();
-                        const a = data.address || {};
+        // 端末は精度の粗い測位(Wi-Fi/基地局)を先に返すことがある。
+        // watchPosition で精度が収束するのを待ち、最も良い1点だけを使う。
+        // 逆ジオコーディングへのリクエストは従来どおり1到着につき1回。
+        const GEO_ACCURACY_TARGET = 50;    // この誤差(m)以下になったら即採用
+        const GEO_MAX_WAIT = 12000;        // 収束しなくてもここで打ち切る(ms)
+        const GEOCODE_MIN_INTERVAL = 1100; // Nominatim の上限は毎秒1リクエスト
+        let lastGeocodeAt = 0;
 
-                        const cityStart = a.city || a.town || a.village || a.municipality || a.county || '';
-                        const areaParts = [
-                            a.city_district,
-                            a.ward,
-                            a.suburb,
-                            a.quarter,
-                            a.neighbourhood,
-                            a.block,
-                            a.residential,
-                            a.hamlet,
-                            a.road,
-                            a.house_number,
-                            a.building
-                        ].filter(Boolean);
-                        const formatted = [...new Set([cityStart, ...areaParts].filter(Boolean))].join('');
-                        resolve({ address: formatted || data.display_name?.replace(/^.*?[都道府県]\s*/, '') || '住所不明', lat, lon });
-                    } catch (e) { resolve({ address: '住所取得エラー', lat: null, lon: null }); }
-                }, (err) => {
-                    clearTimeout(timeoutId);
-                    resolve({ address: '位置情報取得失敗', lat: null, lon: null });
-                }, { enableHighAccuracy: true, timeout: 9000 });
+        const acquirePosition = (onProgress) => {
+            return new Promise((resolve) => {
+                let best = null;
+                let watchId = null;
+                let settled = false;
+                const finish = () => {
+                    if (settled) return;
+                    settled = true;
+                    clearTimeout(timer);
+                    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+                    resolve(best);
+                };
+                const timer = setTimeout(finish, GEO_MAX_WAIT);
+                watchId = navigator.geolocation.watchPosition((pos) => {
+                    if (!best || pos.coords.accuracy < best.coords.accuracy) best = pos;
+                    if (onProgress) onProgress(best.coords.accuracy);
+                    if (best.coords.accuracy <= GEO_ACCURACY_TARGET) finish();
+                }, () => {
+                    // 途中で失敗しても、それまでに得た最良点があれば使う
+                    finish();
+                }, { enableHighAccuracy: true, timeout: GEO_MAX_WAIT, maximumAge: 0 });
             });
+        };
+
+        const reverseGeocode = async (lat, lon) => {
+            const wait = GEOCODE_MIN_INTERVAL - (Date.now() - lastGeocodeAt);
+            if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+            lastGeocodeAt = Date.now();
+            // User-Agent は fetch では送れない禁止ヘッダーなので指定しない。
+            // 言語は accept-language クエリで渡す
+            const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&accept-language=ja`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('API Error');
+            return await res.json();
+        };
+
+        const formatAddress = (data) => {
+            const a = data.address || {};
+            const cityStart = a.city || a.town || a.village || a.municipality || a.county || '';
+            // road / house_number / building は入れない。日本の OSM には地番がほとんど無く、
+            // Nominatim は最寄りの道路や建物にスナップするため、
+            // 実際の所在地とは違う名前(県道名・橋の名前など)が混ざる
+            const areaParts = [
+                a.city_district,
+                a.ward,
+                a.suburb,
+                a.quarter,
+                a.neighbourhood,
+                a.block,
+                a.residential,
+                a.hamlet
+            ].filter(Boolean);
+            // 階層どうしが重なることがある(neighbourhood='平池町' と quarter='平池町四丁目' など)。
+            // 完全一致だけでなく、包含関係でも重複を潰す
+            const merged = [];
+            [cityStart, ...areaParts].filter(Boolean).forEach((part) => {
+                if (merged.some((m) => m.includes(part))) return;
+                while (merged.length && part.startsWith(merged[merged.length - 1])) merged.pop();
+                merged.push(part);
+            });
+            const formatted = merged.join('');
+            return formatted || data.display_name?.replace(/^.*?[都道府県]\s*/, '') || '住所不明';
+        };
+
+        const getCurrentLocation = async (onProgress) => {
+            if (!navigator.geolocation) {
+                return { address: '位置情報非対応', lat: null, lon: null, accuracy: null };
+            }
+            const pos = await acquirePosition(onProgress);
+            if (!pos) {
+                return { address: '位置情報取得失敗', lat: null, lon: null, accuracy: null };
+            }
+            const lat = pos.coords.latitude;
+            const lon = pos.coords.longitude;
+            const accuracy = Math.round(pos.coords.accuracy);
+            try {
+                const data = await reverseGeocode(lat, lon);
+                return { address: formatAddress(data), lat, lon, accuracy };
+            } catch (e) {
+                // 座標は取れているので捨てない。住所だけ手で直してもらう
+                return { address: '住所取得エラー', lat, lon, accuracy };
+            }
         };
 
         // --- Core Actions ---
@@ -434,11 +485,14 @@ createApp({
             loadingText.value = '位置情報を取得中...';
             // 【修正 #7】同期処理を Promise.all から分離
             const time = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-            const loc = await getCurrentLocation();
+            const loc = await getCurrentLocation((acc) => {
+                loadingText.value = `位置情報を取得中... 精度 ±${Math.round(acc)}m`;
+            });
             tempTime.value = time;
             tempAddress.value = loc.address;
             tempLat.value = loc.lat;
             tempLon.value = loc.lon;
+            tempAccuracy.value = loc.accuracy;
             loading.value = false;
             screen.value = 'mileage_check';
             inputBuffer.value = '';
@@ -688,7 +742,7 @@ createApp({
 
             // Modal & Data
             // 【修正 #6】tempLocation エイリアスを廃止し tempAddress に統一
-            tempAddress, tempTime,
+            tempAddress, tempTime, tempAccuracy,
             tempDepartureTime, tempDestinationName, tempPaymentMethod, tempRemarks, paymentOptions,
             confirmDeparture, handleArrival, confirmArrival, cancelModal, handleDeparture,
 
