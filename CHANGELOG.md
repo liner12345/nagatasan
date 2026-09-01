@@ -12,6 +12,16 @@ All notable changes to this project will be documented in this file.
   so the Excel import macro can verify the format version before parsing.
 - GPS accuracy (`±Nm`) on the arrival confirmation screen, highlighted when it exceeds 50 m,
   so a bad fix is visible before it gets recorded.
+- A "過去の日を記録" button on the history list. It creates an empty run dated the previous
+  day and opens it straight in edit mode, so a day that was never recorded can be entered
+  afterwards. Today's in-progress data (`nippoData_pro_v3`) is left untouched.
+- An "案件を追加" button in edit mode. Cases could previously only be deleted, which made it
+  impossible to build a run from nothing.
+- A date field in edit mode, so a run stored under the wrong day can be moved. The stored
+  `dateStr` keeps its `YYYY/MM/DD(曜)` shape, because `01_nippo.py` matches on the leading
+  `YYYY/MM/DD` and silently skips history entries that do not.
+- Confirmation prompts when saving a run dated in the future, or one that duplicates an
+  existing date and starting odometer (the kit splits those into separate sheets).
 
 ### Changed
 - `index.html` to include appropriate `<link>` tags for the new icons and the manifest file.
@@ -30,9 +40,15 @@ All notable changes to this project will be documented in this file.
 - Overlapping address levels are collapsed by containment, not only by exact match.
   Nominatim can return a `neighbourhood` and a `quarter` where one is a prefix of the
   other, which used to be concatenated into a doubled place name.
+- The history list is re-sorted by date, newest first, after a save, so a past day entered
+  later lands in the right place.
+- `saveAndReset()` builds the date through the shared `formatDateStr()` helper.
 
 ### Fixed
 - The `User-Agent` header is no longer set on the Nominatim request. It is a forbidden
   header name in `fetch()`, so the browser discarded it and the request went out unlabelled.
 - A failed reverse geocoding lookup no longer throws the coordinates away. They are kept,
   so nearby-destination matching still works and only the address text needs fixing by hand.
+- `saveEditMode()` located the record to write back by the **edited** `dateStr` and
+  `startTime`. Changing either of them made the lookup fail and the edit was discarded
+  without any message. The index is now captured when the record is opened.

@@ -24,6 +24,10 @@ createApp({
         
         // Edit Mode State
         const isEditing = ref(false);
+        // まだ historyList に無い新規レコード(記録し忘れた過去日)を編集中か
+        const isNewPastEntry = ref(false);
+        // 編集中の履歴が historyList の何番目か。-1 は新規または当日の進行中データ
+        const editingIndex = ref(-1);
         const editBuffer = ref({
             startTime: '',
             startMileage: 0,
@@ -136,6 +140,33 @@ createApp({
             return createGroups(targetLogs);
         });
 
+        // --- 日付の書式 ---
+        // 履歴の dateStr は 'YYYY/MM/DD(曜)'。自動記帳キット(01_nippo.py)が先頭の
+        // YYYY/MM/DD を正規表現で読むため、この形式を崩すと日報に出なくなる
+        const formatDateStr = (d) => d.toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' });
+        const dateStrToInput = (str) => {
+            const m = /^(\d{4})\/(\d{2})\/(\d{2})/.exec(str || '');
+            return m ? `${m[1]}-${m[2]}-${m[3]}` : '';
+        };
+        const inputToDateStr = (val) => {
+            const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(val || '');
+            return m ? formatDateStr(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) : '';
+        };
+        // <input type="date"> は YYYY-MM-DD しか扱えないので変換して橋渡しする
+        const editDateInput = computed({
+            get: () => dateStrToInput(editBuffer.value.dateStr),
+            set: (val) => { const str = inputToDateStr(val); if (str) editBuffer.value.dateStr = str; }
+        });
+
+        // 履歴は新しい順に並べる。過去日を後から足しても正しい位置に入る
+        const sortHistory = () => {
+            const key = (item) => {
+                const m = /^(\d{4})\/(\d{2})\/(\d{2})/.exec(item.dateStr || '');
+                return (m ? m[1] + m[2] + m[3] : '00000000') + (item.startTime || '');
+            };
+            historyList.value.sort((a, b) => key(b).localeCompare(key(a)));
+        };
+
         // --- Editing Logic ---
         const enterEditMode = () => {
             const sourceStartKm = viewingHistoryMode.value ? historyData.value.startMileage : startMileage.value;
@@ -143,11 +174,21 @@ createApp({
             const sourceLogs = viewingHistoryMode.value ? historyData.value.logs : logs.value;
 
             editBuffer.value = {
+                // 日付を持つのは履歴レコードだけ。当日の進行中データの日付は
+                // saveAndReset() のときに決まるので、ここでは編集させない
+                dateStr: viewingHistoryMode.value ? historyData.value.dateStr : null,
                 startMileage: sourceStartKm,
                 startTime: sourceStartTime,
                 groups: createGroups(sourceLogs) 
             };
             isEditing.value = true;
+        };
+
+        const addGroupToBuffer = () => {
+            editBuffer.value.groups.push({
+                arrival:   { type: 'arrival',   time: '', address: '', mileage: 0 },
+                departure: { type: 'departure', time: '', destination: '', payment: '現金', remarks: '' }
+            });
         };
 
         const removeGroupFromBuffer = (index) => {
@@ -157,6 +198,13 @@ createApp({
         };
 
         const saveEditMode = () => {
+            if (viewingHistoryMode.value) {
+                if (!/^\d{4}\/\d{2}\/\d{2}/.test(editBuffer.value.dateStr || '')) {
+                    alert('日付が正しくありません。'); return;
+                }
+                if (dateStrToInput(editBuffer.value.dateStr) > dateStrToInput(formatDateStr(new Date()))
+                    && !confirm('未来の日付になっています。\nこのまま保存しますか？')) return;
+            }
             if(!confirm('変更を保存しますか？')) return;
 
             const newLogs = [];
@@ -166,21 +214,38 @@ createApp({
             });
 
             if (viewingHistoryMode.value) {
+                historyData.value.dateStr = editBuffer.value.dateStr;
                 historyData.value.startMileage = editBuffer.value.startMileage;
                 historyData.value.startTime = editBuffer.value.startTime;
                 historyData.value.logs = newLogs;
                 const lastLog = newLogs.filter(l => l.type === 'arrival' && l.mileage).pop();
                 const lastKm = lastLog ? lastLog.mileage : 0;
                 historyData.value.totalDistance = (lastKm > 0) ? (lastKm - editBuffer.value.startMileage) : 0;
-                
-                // 【修正 #3】ディープコピーした historyData の変更を元の historyList に反映
-                const originalIndex = historyList.value.findIndex(item =>
+
+                // 同じ日付で開始距離まで同じだと 01_nippo.py が別シートに分けてしまう
+                const dup = historyList.value.some((item, i) =>
+                    i !== editingIndex.value &&
                     item.dateStr === historyData.value.dateStr &&
-                    item.startTime === historyData.value.startTime
+                    item.startMileage === historyData.value.startMileage
                 );
-                if (originalIndex !== -1) {
-                    historyList.value[originalIndex] = JSON.parse(JSON.stringify(historyData.value));
+                if (dup && !confirm('同じ日付・同じ開始距離の記録が既にあります。\nこのまま保存しますか？')) return;
+
+                // 【修正】以前は編集後の dateStr + startTime で元レコードを探していたため、
+                // 日付や開始時刻を変えると書き戻し先を見失い、変更が黙って消えていた。
+                // 開いた時点のインデックスを使う
+                const saved = JSON.parse(JSON.stringify(historyData.value));
+                if (isNewPastEntry.value) {
+                    historyList.value.push(saved);
+                } else if (editingIndex.value !== -1) {
+                    historyList.value[editingIndex.value] = saved;
                 }
+                sortHistory();
+                editingIndex.value = historyList.value.findIndex(item =>
+                    item.dateStr === saved.dateStr &&
+                    item.startTime === saved.startTime &&
+                    item.startMileage === saved.startMileage
+                );
+                isNewPastEntry.value = false;
                 updateHistoryStorage();
             } else {
                 startMileage.value = editBuffer.value.startMileage;
@@ -193,9 +258,16 @@ createApp({
         };
 
         const cancelEditMode = () => {
-            if(confirm('編集を破棄して戻りますか？')) {
-                isEditing.value = false;
-                editBuffer.value = { startTime: '', startMileage: 0, groups: [] };
+            if(!confirm('編集を破棄して戻りますか？')) return;
+            isEditing.value = false;
+            editBuffer.value = { dateStr: null, startTime: '', startMileage: 0, groups: [] };
+            if (isNewPastEntry.value) {
+                // まだ履歴に入れていない新規レコードなので、丸ごと捨てて一覧へ戻る
+                isNewPastEntry.value = false;
+                viewingHistoryMode.value = false;
+                historyData.value = null;
+                editingIndex.value = -1;
+                screen.value = 'start';
             }
         };
 
@@ -598,6 +670,8 @@ createApp({
         const closeSubScreens = () => {
             if(isEditing.value) return; 
             viewingHistoryMode.value = false;
+            isNewPastEntry.value = false;
+            editingIndex.value = -1;
             showSettings.value = false;
             historyData.value = null;
             if (screen.value !== 'start') screen.value = 'start';
@@ -605,7 +679,7 @@ createApp({
 
         const saveAndReset = () => {
             if(!confirm('本日の業務を完了しますか？')) return;
-            const todayStr = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' });
+            const todayStr = formatDateStr(new Date());
             historyList.value.unshift({
                 dateStr: todayStr,
                 startMileage: startMileage.value,
@@ -697,8 +771,29 @@ createApp({
         // 【修正 #3】ディープコピーで履歴を閲覧（元データを直接変更しない）
         const viewHistory = (item) => {
             viewingHistoryMode.value = true;
+            isNewPastEntry.value = false;
+            // 保存時の書き戻し先。編集で日付や時刻が変わっても見失わない
+            editingIndex.value = historyList.value.indexOf(item);
             historyData.value = JSON.parse(JSON.stringify(item));
             screen.value = 'summary';
+        };
+
+        // 記録し忘れた過去日を後から入力する。当日の進行中データには触らない
+        const startPastEntry = () => {
+            const d = new Date();
+            d.setDate(d.getDate() - 1);
+            historyData.value = {
+                dateStr: formatDateStr(d),
+                startMileage: 0,
+                startTime: '',
+                logs: [],
+                totalDistance: 0
+            };
+            viewingHistoryMode.value = true;
+            isNewPastEntry.value = true;
+            editingIndex.value = -1;
+            screen.value = 'summary';
+            enterEditMode();
         };
 
         // Computed Stats
@@ -759,6 +854,7 @@ createApp({
 
             // Edit Mode
             isEditing, editBuffer, enterEditMode, saveEditMode, cancelEditMode, removeGroupFromBuffer,
+            isNewPastEntry, addGroupToBuffer, startPastEntry, editDateInput,
             getEditLastMileage, calculateEditTotalDistance
         };
     }

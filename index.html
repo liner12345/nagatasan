@@ -118,9 +118,14 @@
             <div v-if="!showSettings" class="animate-slide-in" style="animation-delay: 0.1s;">
                 <div class="flex justify-between items-center mb-3 px-2 mt-4">
                     <h3 class="text-sm font-bold text-gray-400">完了した日報（履歴）</h3>
-                    <button @click="showSettings = true" class="text-xs text-gray-500 font-bold bg-white px-3 py-1.5 rounded-full border border-gray-200 shadow-sm flex items-center gap-1">
-                        <i class="fa-solid fa-gear"></i> データ管理
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <button @click="startPastEntry" class="text-xs text-blue-600 font-bold bg-white px-3 py-1.5 rounded-full border border-blue-200 shadow-sm flex items-center gap-1">
+                            <i class="fa-solid fa-calendar-plus"></i> 過去の日を記録
+                        </button>
+                        <button @click="showSettings = true" class="text-xs text-gray-500 font-bold bg-white px-3 py-1.5 rounded-full border border-gray-200 shadow-sm flex items-center gap-1">
+                            <i class="fa-solid fa-gear"></i> データ管理
+                        </button>
+                    </div>
                 </div>
                 
                 <div v-if="historyList.length > 0" class="min-h-[200px]">
@@ -205,6 +210,15 @@
             </div>
             
             <div class="space-y-6 px-1">
+                <div v-if="isEditing && editBuffer.dateStr" class="bg-white p-3 rounded-xl border border-gray-200 flex items-center gap-3">
+                    <i class="fa-solid fa-calendar-day text-blue-500 flex-shrink-0"></i>
+                    <div class="flex-1 min-w-0">
+                        <label class="text-[10px] font-bold text-gray-400 block mb-1">日付（記録し忘れた日はここで変える）</label>
+                        <input type="date" v-model="editDateInput" class="w-full bg-transparent text-sm font-bold text-gray-800 border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1">
+                    </div>
+                    <span class="text-xs font-bold text-gray-500 whitespace-nowrap">{{ editBuffer.dateStr }}</span>
+                </div>
+
                 <div class="bg-gradient-to-br from-blue-500 to-blue-600 p-5 rounded-2xl text-white shadow-lg">
                     <div class="flex justify-between items-end mb-4">
                         <div class="text-blue-100 text-xs font-bold">総走行距離</div>
@@ -329,6 +343,12 @@
                                 </div>
                             </template>
                         </div>
+                    </div>
+                    <button v-if="isEditing" @click="addGroupToBuffer" class="w-full mt-2 bg-white border-2 border-dashed border-blue-300 text-blue-600 font-bold py-3 rounded-2xl btn-press flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-plus"></i> 案件を追加
+                    </button>
+                    <div v-if="isEditing && (isEditing ? editBuffer.groups : groupedLogs).length === 0" class="text-center py-4 text-gray-300 text-xs font-bold">
+                        案件がありません。「案件を追加」で入れてください
                     </div>
                 </div>
             </div>
