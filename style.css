@@ -78,7 +78,7 @@ body {
     justify-content: center;
     touch-action: manipulation;
     transition: transform 0.1s, background-color 0.1s;
-    height: 52px;
+    height: 58px;
 }
 .keypad-btn:active {
     transform: translateY(2px);
@@ -91,7 +91,7 @@ body {
     font-size: 1.1rem;
 }
 .keypad-spacer {
-    height: 52px;
+    height: 58px;
     visibility: hidden;
 }
 
@@ -120,11 +120,11 @@ input[type="time"] {
     width: 100%;
     background-color: #fff;
     border: 1px solid #d1d5db;
-    border-radius: 0.375rem;
-    padding: 0.25rem 0.5rem;
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.6rem;   /* 指で押せる高さを確保する */
     font-weight: bold;
     color: #1f2937;
-    font-size: 0.9rem;
+    font-size: 1rem;          /* iOS は 16px 未満だと入力時にズームする */
 }
 .edit-input:focus {
     outline: none;
@@ -132,10 +132,21 @@ input[type="time"] {
     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 .edit-label {
-    font-size: 0.7rem;
-    color: #6b7280;
-    margin-bottom: 0.1rem;
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: #4b5563;
+    margin-bottom: 0.2rem;
     display: block;
+}
+
+/* 最小のタップ目標。44px は Apple HIG の下限で、
+   走行後の手だと 32px の削除ボタンは隣と押し間違える */
+.tap-target {
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* アニメーション */

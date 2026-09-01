@@ -834,6 +834,91 @@ createApp({
             showSettings.value = false;
         };
 
+        // --- LINE へ送る日報 ---
+        // これまでは PDF に変換してから送っていた。読む側は本文のまま読めたほうが速く、
+        // 転記も引用もできるのでテキストで組み立てる。
+        // (copyToClipboard の KEY::VALUE 形式は機械向けで、人が読む形ではない)
+        const circled = (n) => (n >= 1 && n <= 20 ? '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳'[n - 1] : `(${n})`);
+        const yen = (v) => Number(v).toLocaleString('ja-JP') + '円';
+
+        const buildReportText = () => {
+            const hist = viewingHistoryMode.value;
+            const src = hist ? (historyData.value || {}) : null;
+            const targetLogs = hist ? (src.logs || []) : logs.value;
+            const startKm = hist ? src.startMileage : startMileage.value;
+            const startAt = hist ? src.startTime : startTime.value;
+            const date = hist ? src.dateStr : formatDateStr(new Date());
+            const car = (hist ? (src.vehicleNo || vehicleNumber.value) : vehicleNumber.value) || '';
+
+            const groups = createGroups(targetLogs);
+            const arrivals = targetLogs.filter((l) => l.type === 'arrival' && l.mileage);
+            const endKm = arrivals.length ? arrivals[arrivals.length - 1].mileage : null;
+            const endAt = targetLogs.length ? targetLogs[targetLogs.length - 1].time : '';
+            const distance = (endKm !== null && startKm !== undefined && startKm !== null)
+                ? Number(endKm) - Number(startKm) : null;
+
+            const out = [];
+            out.push(`■ ${date} 配送日報`);
+            if (car) out.push(`車両 ${car}`);
+            if (startAt || endAt) out.push(`${startAt || '--:--'} 〜 ${endAt || '--:--'}`);
+            if (distance !== null) {
+                out.push(`走行 ${distance.toLocaleString('ja-JP')}km（${Number(startKm).toLocaleString('ja-JP')} → ${Number(endKm).toLocaleString('ja-JP')}）`);
+            }
+
+            let toll = 0;
+            let park = 0;
+            groups.forEach((g, i) => {
+                const a = g.arrival || {};
+                const d = g.departure || {};
+                out.push('');
+                out.push(`${circled(i + 1)} ${d.destination || '(配送先なし)'}`);
+                const times = [];
+                if (a.time) times.push(`${a.time}着`);
+                if (d.time) times.push(`${d.time}発`);
+                const head = times.join(' → ');
+                out.push(`　${head}${head && d.payment ? ' ／ ' : ''}${d.payment || ''}`.replace(/\s+$/, ''));
+                if (a.address) out.push(`　${a.address}`);
+                const fees = [];
+                if (a.tollFee > 0) { toll += Number(a.tollFee); fees.push(`高速 ${yen(a.tollFee)}`); }
+                if (a.parkingFee > 0) { park += Number(a.parkingFee); fees.push(`駐車 ${yen(a.parkingFee)}`); }
+                if (fees.length) out.push(`　${fees.join(' ／ ')}`);
+                if (d.remarks) out.push(`　備考 ${d.remarks}`);
+            });
+
+            out.push('');
+            const tail = [`合計 ${groups.length}件`];
+            if (toll + park > 0) tail.push(`立替 ${yen(toll + park)}`);
+            out.push(tail.join(' ／ '));
+            return out.join('\n');
+        };
+
+        const shareReport = async () => {
+            const text = buildReportText();
+            // 1) OS の共有シート。LINE を含めて送り先を選べる(iOS / Android)
+            if (navigator.share) {
+                try {
+                    await navigator.share({ text });
+                    return;
+                } catch (e) {
+                    if (e && e.name === 'AbortError') return;   // ユーザーが閉じただけ
+                }
+            }
+            // 2) 共有シートが無い環境では LINE を直接開く
+            if (confirm('LINEを開いて送りますか？\n（キャンセルするとテキストをコピーします）')) {
+                window.location.href = 'https://line.me/R/share?text=' + encodeURIComponent(text);
+                return;
+            }
+            // 3) それも使えなければクリップボードへ
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showCopyToast.value = true;
+                    setTimeout(() => showCopyToast.value = false, 2000);
+                }).catch(() => alert('コピーできませんでした。'));
+            } else {
+                alert('この環境では共有もコピーもできません。');
+            }
+        };
+
         const copyToClipboard = () => {
             const targetLogs = viewingHistoryMode.value ? historyData.value.logs : logs.value;
             const targetStartKm = viewingHistoryMode.value ? historyData.value.startMileage : startMileage.value;
@@ -940,6 +1025,24 @@ createApp({
             return Number(last) - Number(activeStart.value);
         });
 
+        // dashboard に出す当日の記録。走行中に知りたいのは
+        // 「何件終わったか / 何km走ったか / 直前はどこか」
+        const todaySummary = computed(() => {
+            const groups = createGroups(logs.value);
+            const done = groups.filter((g) => g.departure).pop();
+            let fee = 0;
+            logs.value.forEach((l) => {
+                fee += (Number(l.tollFee) || 0) + (Number(l.parkingFee) || 0);
+            });
+            return {
+                done: logs.value.filter((l) => l.type === 'departure').length,
+                distance: calculateTotalDistance.value,
+                fee,
+                lastName: done && done.departure ? done.departure.destination : '',
+                lastTime: done && done.departure ? done.departure.time : ''
+            };
+        });
+
         const paginatedHistory = computed(() => {
             const start = currentHistoryPage.value * 5;
             return historyList.value.slice(start, start + 5);
@@ -976,6 +1079,8 @@ createApp({
             // Navigation
             startWork, goToSummary, backToDashboard, saveAndReset, viewHistory, closeSubScreens,
             groupedLogs, calculateTotalDistance, getLastMileage, copyToClipboard, getStatusText,
+            todaySummary,
+            buildReportText, shareReport,
 
             // Edit Mode
             isEditing, editBuffer, enterEditMode, saveEditMode, cancelEditMode, removeGroupFromBuffer,

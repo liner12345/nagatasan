@@ -41,6 +41,11 @@ All notable changes to this project will be documented in this file.
 - A warning badge on history entries that fail the same check, so records already stored can
   be found. Six of the 110 days in the current data are flagged.
 - `vehicleNo` on each history entry, editable in the editor.
+- A "LINEで送る" button on the report screen. It builds the day's report as readable text and
+  hands it to `navigator.share()`, falling back to LINE's share URL and then to the clipboard.
+  Until now the report had to be turned into a PDF before it could be sent.
+- A summary on the dashboard: cases completed, distance so far, advanced fees, and where the
+  last delivery was. The screen used to hold two buttons and nothing else.
 
 ### Changed
 - `index.html` to include appropriate `<link>` tags for the new icons and the manifest file.
@@ -76,6 +81,17 @@ All notable changes to this project will be documented in this file.
 - The service worker serves the app itself network-first, falling back to the cache when
   offline, and keeps cache-first only for `vendor/`. An update now reaches the app without
   bumping the cache version.
+- The dashboard sizes its two buttons by what comes next: the one to press is large, the one
+  that cannot be used shrinks. They used to be equal and filled the screen between them.
+- Text set at 10-11px is now 12px or more, and label grey moved from `gray-400` to `gray-500`.
+  The old pairing was hard to read in daylight, which is where this app is used.
+- Delete buttons are 44px (the floor in Apple's HIG) and sit further from the row they belong
+  to. At 32px, right beside the tap target that opens a record, they invite a mis-tap.
+- Keypad keys are 58px tall and edit fields are 16px, below which iOS zooms the page on focus.
+- `tailwind.css` moved out of `vendor/` to the app root, and the cache version is now v3.
+  `vendor/` is served cache-first, but this stylesheet is generated from `index.html`, so it
+  belongs with the app: while it sat in `vendor/`, editing the markup left the old styles in
+  place. This was found by hitting it — a disabled button kept its enabled colours.
 
 ### Fixed
 - The `User-Agent` header is no longer set on the Nominatim request. It is a forbidden

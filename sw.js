@@ -2,27 +2,31 @@
  * アプリ本体と依存はすべて事前にキャッシュして同一オリジンから配る。
  *
  * 取り出し方は2通りに分けている。
- *   vendor/ 配下   … バージョンを固定した資産。中身が変わらないのでキャッシュ優先
- *   それ以外       … アプリ本体。ネットワーク優先にして、更新をすぐ届ける
+ *   vendor/ 配下   … バージョンを固定した外部ライブラリ。中身が変わらないのでキャッシュ優先
+ *   それ以外       … アプリ本体。ネットワーク優先にして更新をすぐ届ける
  *                    （圏外ならキャッシュへ落ちるので、オフラインでも起動する）
+ *
+ * tailwind.css は index.html のクラスから生成する = アプリ側の資産なので、
+ * vendor/ ではなくルートに置く。vendor/ に置くとキャッシュ優先になり、
+ * 画面を直しても古いスタイルが返り続ける。
  *
  * ファイルを足す・消すときは PRECACHE の一覧を更新する。
  * CACHE の版を上げると、次回オンラインで開いたときに古いキャッシュを丸ごと捨てる。
  */
-const CACHE = 'nagata-nippo-v2';
+const CACHE = 'nagata-nippo-v3';
 
 const PRECACHE = [
   './',
   './index.html',
   './app.js',
   './style.css',
+  './tailwind.css',
   './manifest.json',
   './favicon.svg',
   './favicon-16x16.png',
   './favicon-32x32.png',
   './apple-touch-icon.png',
   './vendor/vue.global.prod.js',
-  './vendor/tailwind.css',
   './vendor/fontawesome/css/all.min.css',
   './vendor/fontawesome/webfonts/fa-solid-900.woff2',
   './vendor/fontawesome/webfonts/fa-regular-400.woff2'

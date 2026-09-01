@@ -7,7 +7,7 @@
 <!-- 依存はすべて同一オリジンに置く。CDN だと圏外でアプリごと開かなくなるため。
      vendor/ の作り直し方は package.json の scripts と README を参照 -->
 <script src="./vendor/vue.global.prod.js"></script>
-<link href="./vendor/tailwind.css" rel="stylesheet">
+<link href="./tailwind.css" rel="stylesheet">
 <link href="./vendor/fontawesome/css/all.min.css" rel="stylesheet">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml">
 <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32x32.png">
@@ -41,31 +41,31 @@
         
         <div v-if="screen === 'start'" class="flex flex-col gap-6 pb-10">
             <div v-if="!showSettings" class="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 text-center animate-slide-in">
-                <h2 class="text-lg font-bold mb-4 text-gray-800">業務開始</h2>
+                <h2 class="text-xl font-bold mb-4 text-gray-800">業務開始</h2>
                 
                 <div class="mb-5 flex justify-center gap-3">
                     <div class="flex flex-col items-center gap-1">
-                        <label class="text-xs font-bold text-gray-400">
+                        <label class="text-xs font-bold text-gray-500">
                             <i class="fa-solid fa-car"></i> 車両No
                         </label>
                         <input type="tel" pattern="[0-9]*" v-model="vehicleNumber" maxlength="4" placeholder="0000" class="h-12 bg-gray-50 border border-gray-200 text-gray-800 text-lg font-bold rounded-xl focus:ring-blue-500 focus:border-blue-500 block w-24 text-center shadow-sm" @input="saveVehicleNumber" @focus="moveVehicleCaretToEnd" @click="moveVehicleCaretToEnd" ref="vehicleNumberInput">
                     </div>
                     
                     <div class="flex flex-col items-center gap-1">
-                        <label class="text-xs font-bold text-gray-400">
+                        <label class="text-xs font-bold text-gray-500">
                             <i class="fa-regular fa-clock"></i> 開始時刻
                         </label>
                         <input type="time" v-model="startTime" class="h-12 bg-gray-50 border border-gray-200 text-gray-800 text-lg font-bold rounded-xl focus:ring-blue-500 focus:border-blue-500 block w-32 shadow-sm">
                     </div>
                 </div>
                 <div v-if="vehicleNumberHistory.length" class="mb-5 text-left">
-                    <p class="text-[11px] font-bold text-gray-400 mb-2">最近の車両No（タップで入力）</p>
+                    <p class="text-xs font-bold text-gray-500 mb-2">最近の車両No（タップで入力）</p>
                     <div class="space-y-2">
                         <div v-for="item in vehicleNumberHistory" :key="item" class="flex items-center gap-2">
                             <button @click="selectVehicleNumber(item)" class="flex-1 text-left bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold text-gray-700 transition-colors">
                                 {{ item }}
                             </button>
-                            <button @click="removeVehicleNumberFromHistory(item)" class="w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-500 text-[10px] border border-gray-200 transition-colors" aria-label="車両No履歴を削除">
+                            <button @click="removeVehicleNumberFromHistory(item)" class="tap-target rounded-full bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-500 text-xs border border-gray-200 transition-colors" aria-label="車両No履歴を削除">
                                 <i class="fa-solid fa-xmark"></i>
                             </button>
                         </div>
@@ -119,7 +119,7 @@
 
             <div v-if="!showSettings" class="animate-slide-in" style="animation-delay: 0.1s;">
                 <div class="flex justify-between items-center mb-3 px-2 mt-4">
-                    <h3 class="text-sm font-bold text-gray-400">完了した日報（履歴）</h3>
+                    <h3 class="text-sm font-bold text-gray-500">完了した日報（履歴）</h3>
                     <div class="flex items-center gap-2">
                         <button @click="startPastEntry" class="text-xs text-blue-600 font-bold bg-white px-3 py-1.5 rounded-full border border-blue-200 shadow-sm flex items-center gap-1">
                             <i class="fa-solid fa-calendar-plus"></i> 過去の日を記録
@@ -138,14 +138,14 @@
                                     <i class="fa-solid fa-file-lines"></i>
                                 </div>
                                 <div>
-                                    <div class="font-bold text-gray-800">{{ item.dateStr }}</div>
+                                    <div class="font-bold text-gray-800 text-base">{{ item.dateStr }}</div>
                                     <div class="text-xs text-gray-400">走行: {{ item.totalDistance }} km / 案件: {{ item.logs.filter(l => l.type === 'arrival').length }}件</div>
-                                    <div v-if="historyIssue(item)" class="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 mt-1 inline-block">
+                                    <div v-if="historyIssue(item)" class="text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 mt-1 inline-block">
                                         <i class="fa-solid fa-triangle-exclamation"></i> 要確認: {{ historyIssue(item) }}
                                     </div>
                                 </div>
                             </div>
-                            <button @click.stop="deleteHistoryItem(item)" class="w-8 h-8 flex items-center justify-center rounded-full bg-red-50 text-red-500 border border-red-100 btn-press ml-2">
+                            <button @click.stop="deleteHistoryItem(item)" class="tap-target rounded-full bg-red-50 text-red-500 border border-red-100 btn-press ml-3 flex-shrink-0">
                                 <i class="fa-solid fa-xmark"></i>
                             </button>
                         </div>
@@ -175,19 +175,42 @@
                 </div>
             </div>
 
-            <div class="flex-1 flex flex-col gap-4 justify-center my-2">
-                <button @click="handleArrival" :disabled="lastAction === 'arrival'" class="flex-1 bg-green-500 disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none text-white rounded-3xl shadow-md flex flex-col items-center justify-center gap-2 p-4 btn-press transition-all border-b-4 border-green-700 disabled:border-transparent">
-                    <i class="fa-solid fa-location-dot text-4xl mb-1"></i>
-                    <span class="text-2xl font-bold">到着</span>
-                    <span class="text-xs opacity-90 font-bold" v-if="lastAction !== 'arrival'">住所・時刻を記録</span>
-                    <span class="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-full" v-else>到着済み</span>
+            <div class="flex flex-col gap-3 my-1">
+                <button @click="handleArrival" :disabled="lastAction === 'arrival'" class="bg-green-500 disabled:bg-gray-100 disabled:text-gray-400 disabled:shadow-none text-white rounded-3xl shadow-md flex flex-col items-center justify-center gap-1 p-4 btn-press transition-all border-b-4 border-green-700 disabled:border-transparent"
+                        :class="lastAction === 'arrival' ? 'min-h-[76px]' : 'min-h-[152px]'">
+                    <i class="fa-solid fa-location-dot" :class="lastAction === 'arrival' ? 'text-xl' : 'text-4xl mb-1'"></i>
+                    <span class="font-bold" :class="lastAction === 'arrival' ? 'text-lg' : 'text-3xl'">到着</span>
+                    <span class="text-sm opacity-90 font-bold" v-if="lastAction !== 'arrival'">住所・時刻を記録</span>
+                    <span class="text-xs font-bold text-green-700 bg-green-100 px-2 py-1 rounded-full" v-else>到着済み</span>
                 </button>
-                <button @click="handleDeparture" :disabled="lastAction !== 'arrival'" class="flex-1 bg-orange-500 disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none text-white rounded-3xl shadow-md flex flex-col items-center justify-center gap-2 p-4 btn-press transition-all border-b-4 border-orange-700 disabled:border-transparent">
-                    <i class="fa-solid fa-check text-4xl mb-1 ml-2"></i>
-                    <span class="text-2xl font-bold">完了</span>
-                    <span class="text-xs opacity-90 font-bold" v-if="lastAction === 'arrival'">次の目的地へ</span>
-                    <span class="text-xs font-bold text-orange-600 bg-orange-100 px-2 py-1 rounded-full" v-else>未到着</span>
+                <button @click="handleDeparture" :disabled="lastAction !== 'arrival'" class="bg-orange-500 disabled:bg-gray-100 disabled:text-gray-400 disabled:shadow-none text-white rounded-3xl shadow-md flex flex-col items-center justify-center gap-1 p-4 btn-press transition-all border-b-4 border-orange-700 disabled:border-transparent"
+                        :class="lastAction === 'arrival' ? 'min-h-[152px]' : 'min-h-[76px]'">
+                    <i class="fa-solid fa-check" :class="lastAction === 'arrival' ? 'text-4xl mb-1' : 'text-xl'"></i>
+                    <span class="font-bold" :class="lastAction === 'arrival' ? 'text-3xl' : 'text-lg'">完了</span>
+                    <span class="text-sm opacity-90 font-bold" v-if="lastAction === 'arrival'">次の目的地へ</span>
+                    <span class="text-xs font-bold text-orange-700 bg-orange-100 px-2 py-1 rounded-full" v-else>未到着</span>
                 </button>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+                <div class="grid grid-cols-3 gap-2 text-center divide-x divide-gray-100">
+                    <div>
+                        <div class="text-xs font-bold text-gray-500 mb-0.5">完了</div>
+                        <div class="text-2xl font-bold text-gray-800">{{ todaySummary.done }}<span class="text-sm font-normal text-gray-500">件</span></div>
+                    </div>
+                    <div>
+                        <div class="text-xs font-bold text-gray-500 mb-0.5">走行</div>
+                        <div class="text-2xl font-bold text-gray-800">{{ todaySummary.distance }}<span class="text-sm font-normal text-gray-500">km</span></div>
+                    </div>
+                    <div>
+                        <div class="text-xs font-bold text-gray-500 mb-0.5">立替</div>
+                        <div class="text-2xl font-bold text-gray-800">{{ todaySummary.fee.toLocaleString('ja-JP') }}<span class="text-sm font-normal text-gray-500">円</span></div>
+                    </div>
+                </div>
+                <div v-if="todaySummary.lastName" class="mt-3 pt-3 border-t border-gray-100 text-sm text-gray-600 truncate">
+                    直近 <span class="font-bold text-gray-800">{{ todaySummary.lastName }}</span>
+                    <span class="text-gray-500">{{ todaySummary.lastTime }}発</span>
+                </div>
             </div>
 
             <button @click="goToSummary" class="mt-auto bg-gray-800 text-white font-bold py-4 rounded-2xl shadow-lg btn-press text-lg flex items-center justify-center gap-3 flex-shrink-0">
@@ -218,12 +241,12 @@
                 <div v-if="isEditing && editBuffer.dateStr" class="bg-white p-3 rounded-xl border border-gray-200 flex items-center gap-3">
                     <i class="fa-solid fa-calendar-day text-blue-500 flex-shrink-0"></i>
                     <div class="flex-1 min-w-0">
-                        <label class="text-[10px] font-bold text-gray-400 block mb-1">日付（記録し忘れた日はここで変える）</label>
+                        <label class="text-xs font-bold text-gray-500 block mb-1">日付（記録し忘れた日はここで変える）</label>
                         <input type="date" v-model="editDateInput" class="w-full bg-transparent text-sm font-bold text-gray-800 border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1">
                     </div>
                     <span class="text-xs font-bold text-gray-500 whitespace-nowrap">{{ editBuffer.dateStr }}</span>
                     <div class="flex-shrink-0 w-20">
-                        <label class="text-[10px] font-bold text-gray-400 block mb-1">車両No</label>
+                        <label class="text-xs font-bold text-gray-500 block mb-1">車両No</label>
                         <input type="tel" maxlength="4" v-model="editBuffer.vehicleNo" placeholder="0000" class="w-full bg-transparent text-sm font-bold text-gray-800 border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1 text-center">
                     </div>
                 </div>
@@ -278,7 +301,7 @@
                         <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-100 border-2 border-blue-500 z-10"></div>
                         
                         <div class="mb-2 flex justify-between items-center">
-                            <span class="text-xs font-bold text-gray-400 mr-2">案件 #{{ index + 1 }}</span>
+                            <span class="text-xs font-bold text-gray-500 mr-2">案件 #{{ index + 1 }}</span>
                             <button v-if="isEditing" @click="removeGroupFromBuffer(index)" class="bg-red-50 text-red-500 p-1.5 rounded-full hover:bg-red-100 transition-colors" title="この案件を削除">
                                 <i class="fa-solid fa-trash-can text-sm"></i>
                             </button>
@@ -374,8 +397,12 @@
             </div>
 
             <div class="flex flex-col gap-3 mt-4" v-if="!isEditing">
-                <button @click="copyToClipboard" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-2xl shadow-md btn-press flex items-center justify-center gap-2 transition-colors">
-                    <i class="fa-solid fa-file-excel text-xl"></i>
+                <button @click="shareReport" class="w-full bg-[#06C755] hover:bg-[#05b04c] text-white font-bold py-4 rounded-2xl shadow-md btn-press flex items-center justify-center gap-2 transition-colors text-lg">
+                    <i class="fa-solid fa-paper-plane text-xl"></i> LINEで送る
+                </button>
+
+                <button @click="copyToClipboard" class="w-full bg-white border border-gray-200 text-gray-500 font-bold py-3 rounded-2xl btn-press flex items-center justify-center gap-2 transition-colors text-sm">
+                    <i class="fa-solid fa-file-excel"></i>
                     {{ showCopyToast ? 'コピーしました！' : 'Excel転記用データをコピー' }}
                 </button>
 
@@ -384,7 +411,7 @@
                 </button>
             </div>
             
-            <div class="mt-4 text-center text-xs text-gray-400 font-bold" v-else>
+            <div class="mt-4 text-center text-xs text-gray-500 font-bold" v-else>
                 <i class="fa-solid fa-circle-info mr-1"></i> 保存ボタンを押すと変更が確定します
             </div>
         </div>
@@ -407,33 +434,33 @@
                     <i class="fa-solid fa-map-pin text-red-500 mt-3 flex-shrink-0"></i>
                     <div class="w-full">
                         <div class="flex items-center justify-between mb-1 gap-2">
-                            <label class="text-[10px] font-bold text-gray-400">住所（修正可能）</label>
-                            <span v-if="tempAccuracy !== null" class="text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap"
+                            <label class="text-xs font-bold text-gray-500">住所（修正可能）</label>
+                            <span v-if="tempAccuracy !== null" class="text-xs font-bold px-1.5 py-0.5 rounded whitespace-nowrap"
                                   :class="tempAccuracy <= 50 ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'">
                                 GPS誤差 ±{{ tempAccuracy }}m<span v-if="tempAccuracy > 50">・要確認</span>
                             </span>
                         </div>
                         <input type="text" v-model="tempAddress" class="w-full bg-transparent text-sm font-bold text-gray-800 border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1" placeholder="住所を入力">
                         <div v-if="filteredCandidates.length" class="mt-2 flex flex-wrap gap-1 items-center">
-                            <span class="text-[10px] font-bold text-gray-400">近く:</span>
-                            <span v-for="(cand, idx) in filteredCandidates.slice(0, 3)" :key="idx" class="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">{{ cand.name }}</span>
+                            <span class="text-xs font-bold text-gray-500">近く:</span>
+                            <span v-for="(cand, idx) in filteredCandidates.slice(0, 3)" :key="idx" class="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">{{ cand.name }}</span>
                         </div>
                     </div>
                 </div>
 
                 <div class="mb-4 grid grid-cols-2 gap-3">
                     <div class="bg-gray-50 p-2 rounded-lg border border-gray-200">
-                        <label class="text-[10px] font-bold text-gray-400 block mb-1"><i class="fa-solid fa-road"></i> 高速代（ここまで）</label>
+                        <label class="text-xs font-bold text-gray-500 block mb-1"><i class="fa-solid fa-road"></i> 高速代（ここまで）</label>
                         <div class="flex items-baseline gap-1">
                             <input type="number" inputmode="numeric" min="0" v-model="tempTollFee" placeholder="0" class="w-full bg-transparent text-sm font-bold text-gray-800 border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1 text-right">
-                            <span class="text-xs font-bold text-gray-400">円</span>
+                            <span class="text-xs font-bold text-gray-500">円</span>
                         </div>
                     </div>
                     <div class="bg-gray-50 p-2 rounded-lg border border-gray-200">
-                        <label class="text-[10px] font-bold text-gray-400 block mb-1"><i class="fa-solid fa-square-parking"></i> 駐車代（ここで）</label>
+                        <label class="text-xs font-bold text-gray-500 block mb-1"><i class="fa-solid fa-square-parking"></i> 駐車代（ここで）</label>
                         <div class="flex items-baseline gap-1">
                             <input type="number" inputmode="numeric" min="0" v-model="tempParkingFee" placeholder="0" class="w-full bg-transparent text-sm font-bold text-gray-800 border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1 text-right">
-                            <span class="text-xs font-bold text-gray-400">円</span>
+                            <span class="text-xs font-bold text-gray-500">円</span>
                         </div>
                     </div>
                 </div>
@@ -483,7 +510,7 @@
 
                         <div v-if="showCandidateList" class="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 z-50 max-h-48 overflow-y-auto">
                             <div v-if="filteredCandidates.length > 0">
-                                <div class="px-3 py-2 bg-gray-50 text-xs font-bold text-gray-400 border-b border-gray-100 flex justify-between items-center">
+                                <div class="px-3 py-2 bg-gray-50 text-xs font-bold text-gray-500 border-b border-gray-100 flex justify-between items-center">
                                     <span>近くの履歴から選択</span>
                                     <button @click="showCandidateList = false" class="text-gray-400"><i class="fa-solid fa-times"></i></button>
                                 </div>
@@ -492,13 +519,13 @@
                                         <button @click="selectCandidate(cand.name)" class="flex-1 text-left p-3 font-bold text-gray-700 text-sm truncate">
                                             {{ cand.name }}
                                         </button>
-                                        <button @click="deleteCandidate(cand)" class="w-8 h-8 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors">
+                                        <button @click="deleteCandidate(cand)" class="tap-target text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors">
                                             <i class="fa-solid fa-times"></i>
                                         </button>
                                     </li>
                                 </ul>
                             </div>
-                            <div v-else class="p-4 text-center text-xs text-gray-400 font-bold">
+                            <div v-else class="p-4 text-center text-xs text-gray-500 font-bold">
                                 近くの履歴はありません
                             </div>
                         </div>

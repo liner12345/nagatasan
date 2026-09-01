@@ -4,7 +4,7 @@
   "private": true,
   "description": "配送日報 PWA。配信は静的ファイルのみで、ビルドは vendor/tailwind.css を作り直すときだけ要る。",
   "scripts": {
-    "build:css": "tailwindcss -c tailwind.config.js -i tailwind.input.css -o vendor/tailwind.css --minify"
+    "build:css": "tailwindcss -c tailwind.config.js -i tailwind.input.css -o tailwind.css --minify"
   },
   "devDependencies": {
     "tailwindcss": "3.4.17"
