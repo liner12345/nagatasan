@@ -6,3 +6,6 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Build tooling (vendor/ の生成物はコミットする)
+node_modules/

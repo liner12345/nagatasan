@@ -4,6 +4,8 @@ createApp({
     setup() {
         // --- State ---
         const screen = ref('start'); 
+        // SM-1 の5状態。localStorage から復元する値をこれで検証する
+        const SCREENS = ['start', 'dashboard', 'mileage_check', 'departure_check', 'summary'];
         const inputBuffer = ref(''); 
         const loading = ref(false);
         const loadingText = ref('');
@@ -68,7 +70,7 @@ createApp({
             if (savedData) {
                 try {
                     const parsed = JSON.parse(savedData);
-                    screen.value = parsed.screen;
+                    screen.value = SCREENS.includes(parsed.screen) ? parsed.screen : 'start';
                     startMileage.value = parsed.startMileage || 0;
                     logs.value = parsed.logs || [];
                     lastAction.value = parsed.lastAction || 'none';
@@ -85,7 +87,8 @@ createApp({
             if (savedHistory) {
                 // 【修正 #2】履歴データにもエラーハンドリング追加
                 try {
-                    historyList.value = JSON.parse(savedHistory);
+                    const parsed = JSON.parse(savedHistory);
+                    historyList.value = Array.isArray(parsed) ? parsed : [];
                 } catch(e) {
                     console.error('History data corrupted');
                     alert('履歴データの読み込みに失敗しました。履歴は空の状態です。');
@@ -110,7 +113,8 @@ createApp({
             if (loadedLocations) {
                 // 【修正 #2】配送先データにもエラーハンドリング追加
                 try {
-                    savedLocations.value = JSON.parse(loadedLocations);
+                    const parsed = JSON.parse(loadedLocations);
+                    savedLocations.value = Array.isArray(parsed) ? parsed : [];
                 } catch(e) {
                     console.error('Location data corrupted');
                 }
@@ -372,16 +376,24 @@ createApp({
         };
 
         const restoreBackup = (event) => {
-            const file = event.target.files[0];
+            const input = event.target;
+            const file = input.files[0];
             if (!file) return;
             const reader = new FileReader();
+            // 同じファイルを選び直せるよう、結果に関わらず選択状態を必ず戻す
+            const release = () => { input.value = ''; };
+            reader.onerror = () => { alert('ファイルを読み込めませんでした。'); release(); };
             reader.onload = (e) => {
                 try {
                     const data = JSON.parse(e.target.result);
+                    if (!data || typeof data !== 'object' || !Array.isArray(data.history)) {
+                        alert('日報のバックアップファイルではないようです。\n（history が入っていません）');
+                        return;
+                    }
                     if(confirm('現在のデータを上書きして復元しますか？\n（現在の履歴は消えます）')) {
-                        if(data.history) historyList.value = data.history;
-                        if(data.locations) savedLocations.value = data.locations;
-                        if(data.vehicleNo) vehicleNumber.value = data.vehicleNo;
+                        historyList.value = data.history;
+                        if(Array.isArray(data.locations)) savedLocations.value = data.locations;
+                        if(typeof data.vehicleNo === 'string') vehicleNumber.value = data.vehicleNo;
                         if(Array.isArray(data.vehicleNoHistory)) {
                             vehicleNumberHistory.value = data.vehicleNoHistory
                                 .map(v => String(v || '').replace(/\D/g, '').slice(0, 4))
@@ -392,11 +404,15 @@ createApp({
                         saveVehicleNumber();
                         saveVehicleNumberHistory();
                         saveLocations();
+                        sortHistory();
+                        currentHistoryPage.value = 0;
                         alert('復元が完了しました。');
                         showSettings.value = false;
                     }
                 } catch (err) {
                     alert('ファイル形式が正しくありません。');
+                } finally {
+                    release();
                 }
             };
             reader.readAsText(file);
@@ -542,7 +558,12 @@ createApp({
 
         // --- Core Actions ---
         const startWork = () => {
-            startMileage.value = Number(inputBuffer.value);
+            const km = Number(inputBuffer.value);
+            if (!inputBuffer.value || !Number.isFinite(km) || km <= 0) {
+                alert('開始メーターを入力してください。');
+                return;
+            }
+            startMileage.value = km;
             logs.value = [];
             undoStack.value = [];
             inputBuffer.value = '';
@@ -707,12 +728,14 @@ createApp({
             if (index !== -1) {
                 historyList.value.splice(index, 1);
                 updateHistoryStorage();
+                clampHistoryPage();
             }
         };
         const clearAllHistory = () => {
             if(!confirm('【警告】日報の履歴データを全て削除しますか？')) return;
             historyList.value = [];
             updateHistoryStorage();
+            currentHistoryPage.value = 0;
             showSettings.value = false;
         };
         const clearLocations = () => {
@@ -762,9 +785,15 @@ createApp({
                 data.push(`CASE_${num}_NOTE::${dep.remarks || ''}`);
             });
 
+            if (!navigator.clipboard || !navigator.clipboard.writeText) {
+                alert('この環境ではコピーできません。');
+                return;
+            }
             navigator.clipboard.writeText(data.join('\n')).then(() => {
                 showCopyToast.value = true;
                 setTimeout(() => showCopyToast.value = false, 2000);
+            }).catch(() => {
+                alert('コピーできませんでした。');
             });
         };
 
@@ -801,6 +830,7 @@ createApp({
         const activeStart = computed(() => viewingHistoryMode.value ? historyData.value?.startMileage || 0 : startMileage.value);
         
         const getStatusText = computed(() => {
+            if (lastAction.value === 'none') return '業務開始前';
             if (lastAction.value === 'arrival') {
                 const caseNum = logs.value.filter(l => l.type === 'arrival').length;
                 return `案件${caseNum}を作業中`;
@@ -825,7 +855,12 @@ createApp({
             const start = currentHistoryPage.value * 5;
             return historyList.value.slice(start, start + 5);
         });
-        const totalHistoryPages = computed(() => Math.ceil(historyList.value.length / 5));
+        const totalHistoryPages = computed(() => Math.max(1, Math.ceil(historyList.value.length / 5)));
+        // 件数が減ったときに、存在しないページへ取り残されないようにする
+        const clampHistoryPage = () => {
+            const max = totalHistoryPages.value - 1;
+            if (currentHistoryPage.value > max) currentHistoryPage.value = max;
+        };
 
         return {
             screen, inputBuffer, loading, loadingText, lastAction, startMileage,

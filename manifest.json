@@ -7,6 +7,12 @@
   "theme_color": "#2563eb",
   "icons": [
     {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
       "src": "favicon-16x16.png",
       "sizes": "16x16",
       "type": "image/png"
@@ -21,5 +27,7 @@
       "sizes": "180x180",
       "type": "image/png"
     }
-  ]
+  ],
+  "id": "./index.html",
+  "scope": "./"
 }

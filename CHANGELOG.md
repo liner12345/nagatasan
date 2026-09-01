@@ -22,6 +22,15 @@ All notable changes to this project will be documented in this file.
   `YYYY/MM/DD` and silently skips history entries that do not.
 - Confirmation prompts when saving a run dated in the future, or one that duplicates an
   existing date and starting odometer (the kit splits those into separate sheets).
+- `sw.js`, a service worker that pre-caches the app shell and every dependency, so the app
+  opens with no network at all. Delivery vans lose signal, and until now the app simply could
+  not start without a connection.
+- `vendor/`, holding pinned copies of Vue 3.5.42, Tailwind's generated CSS and Font Awesome
+  6.0.0, all served same-origin.
+- `package.json` and `tailwind.config.js` for regenerating `vendor/tailwind.css`. The generated
+  file is committed, so serving the app still needs no build step.
+- `.safe-top` in `style.css`. The header in `index.html` has carried that class from the start
+  but it was never defined anywhere, so the header sat under the iPhone notch.
 
 ### Changed
 - `index.html` to include appropriate `<link>` tags for the new icons and the manifest file.
@@ -43,6 +52,11 @@ All notable changes to this project will be documented in this file.
 - The history list is re-sorted by date, newest first, after a save, so a past day entered
   later lands in the right place.
 - `saveAndReset()` builds the date through the shared `formatDateStr()` helper.
+- Vue, Tailwind and Font Awesome now load from `vendor/` instead of unpkg,
+  cdn.tailwindcss.com and cdnjs. `vue@3` resolved to whatever the newest 3.x happened to be,
+  and cdn.tailwindcss.com is the play CDN that Tailwind documents as unfit for production.
+- `manifest.json` declares `favicon.svg` with `sizes: "any"`, plus `id` and `scope`. No icon
+  was 192px or larger, which Android requires before it will offer to install the app.
 
 ### Fixed
 - The `User-Agent` header is no longer set on the Nominatim request. It is a forbidden
@@ -52,3 +66,14 @@ All notable changes to this project will be documented in this file.
 - `saveEditMode()` located the record to write back by the **edited** `dateStr` and
   `startTime`. Changing either of them made the lookup fail and the edit was discarded
   without any message. The index is now captured when the record is opened.
+- A corrupted `screen` value in localStorage left the app showing nothing at all: every
+  `v-if` missed and the page rendered blank with no way out. The stored value is now checked
+  against the five known screens.
+- `nippoHistory_v2` and `nippoLocations` were restored without checking that they hold arrays.
+- Restoring a backup accepted any JSON object at all; `history` must now be an array. The file
+  input is cleared afterwards too, so the same file can be picked again after a failure.
+- `copyToClipboard()` had no rejection path, so where the clipboard is unavailable the button
+  did nothing whatsoever. It now reports the failure.
+- Deleting the last history entry on a page left the list stranded on an empty page.
+- `startWork()` accepted an empty odometer reading as 0 and started the day anyway.
+- The dashboard read "案件1へ移動中" before work had even started.

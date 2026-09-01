@@ -23,6 +23,14 @@ body {
     position: relative;
 }
 
+/* index.html のヘッダーが使っているが定義が無く、iPhone のノッチ下に潜り込んでいた。
+   h-14 (3.5rem) にセーフエリア分を足す */
+.safe-top {
+    padding-top: env(safe-area-inset-top);
+    height: calc(3.5rem + env(safe-area-inset-top));
+    box-sizing: border-box;
+}
+
 .scrollable-content {
     flex: 1;
     overflow-y: auto;

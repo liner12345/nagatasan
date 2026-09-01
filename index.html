@@ -4,9 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>スマホ日報 - Smart Log Ultimate V3.9</title>
-<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-<script src="https://cdn.tailwindcss.com"></script>
-<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<!-- 依存はすべて同一オリジンに置く。CDN だと圏外でアプリごと開かなくなるため。
+     vendor/ の作り直し方は package.json の scripts と README を参照 -->
+<script src="./vendor/vue.global.prod.js"></script>
+<link href="./vendor/tailwind.css" rel="stylesheet">
+<link href="./vendor/fontawesome/css/all.min.css" rel="stylesheet">
 <link rel="icon" href="./favicon.svg" type="image/svg+xml">
 <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16x16.png">
@@ -506,5 +508,15 @@
 </div>
 
 <script src="./app.js"></script>
+<script>
+  // オフラインで開けるようにする。登録に失敗してもアプリ自体は動く
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('./sw.js').catch(function (e) {
+        console.error('SW registration failed', e);
+      });
+    });
+  }
+</script>
 </body>
 </html>
