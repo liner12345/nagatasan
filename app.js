@@ -40,6 +40,9 @@ createApp({
         const showCopyToast = ref(false);
         const tempAddress = ref('');
         const tempTime = ref('');
+        // 立替。空文字のまま確定したら記録しない(0 と未入力を区別する)
+        const tempTollFee = ref('');
+        const tempParkingFee = ref('');
         const currentHistoryPage = ref(0);
         
         // Departure Modal Data
@@ -181,6 +184,10 @@ createApp({
                 // 日付を持つのは履歴レコードだけ。当日の進行中データの日付は
                 // saveAndReset() のときに決まるので、ここでは編集させない
                 dateStr: viewingHistoryMode.value ? historyData.value.dateStr : null,
+                // 車番も日ごとに持つ。無い古い記録は現在の車番を初期値にする
+                vehicleNo: viewingHistoryMode.value
+                    ? (historyData.value.vehicleNo || vehicleNumber.value || '')
+                    : null,
                 startMileage: sourceStartKm,
                 startTime: sourceStartTime,
                 groups: createGroups(sourceLogs) 
@@ -190,7 +197,7 @@ createApp({
 
         const addGroupToBuffer = () => {
             editBuffer.value.groups.push({
-                arrival:   { type: 'arrival',   time: '', address: '', mileage: 0 },
+                arrival:   { type: 'arrival',   time: '', address: '', mileage: 0, tollFee: '', parkingFee: '' },
                 departure: { type: 'departure', time: '', destination: '', payment: '現金', remarks: '' }
             });
         };
@@ -213,12 +220,22 @@ createApp({
 
             const newLogs = [];
             editBuffer.value.groups.forEach(group => {
-                if(group.arrival) newLogs.push({ ...group.arrival, type: 'arrival' });
+                if (group.arrival) {
+                    const a = { ...group.arrival, type: 'arrival' };
+                    // 入力欄から来た立替は文字列。数値にし、空や 0 はキーごと落とす
+                    ['tollFee', 'parkingFee'].forEach((k) => {
+                        const v = Number(a[k]);
+                        if (Number.isFinite(v) && v > 0) a[k] = v;
+                        else delete a[k];
+                    });
+                    newLogs.push(a);
+                }
                 if(group.departure) newLogs.push({ ...group.departure, type: 'departure' });
             });
 
             if (viewingHistoryMode.value) {
                 historyData.value.dateStr = editBuffer.value.dateStr;
+                historyData.value.vehicleNo = editBuffer.value.vehicleNo || '';
                 historyData.value.startMileage = editBuffer.value.startMileage;
                 historyData.value.startTime = editBuffer.value.startTime;
                 historyData.value.logs = newLogs;
@@ -264,7 +281,7 @@ createApp({
         const cancelEditMode = () => {
             if(!confirm('編集を破棄して戻りますか？')) return;
             isEditing.value = false;
-            editBuffer.value = { dateStr: null, startTime: '', startMileage: 0, groups: [] };
+            editBuffer.value = { dateStr: null, vehicleNo: null, startTime: '', startMileage: 0, groups: [] };
             if (isNewPastEntry.value) {
                 // まだ履歴に入れていない新規レコードなので、丸ごと捨てて一覧へ戻る
                 isNewPastEntry.value = false;
@@ -556,6 +573,49 @@ createApp({
             }
         };
 
+        // --- 距離の検査 ---
+        // 手元の実データ(110日 / 311区間)から決めた閾値。
+        // 区間は最大 108km の次が 512km、1日は最大 98km の次が 1002km と、
+        // 現実的な値と打ち間違いの間がはっきり空いている
+        const MAX_LEG_KM = 200;
+        const MAX_DAY_KM = 300;
+
+        // 直前の到着メーター。無ければ開始メーター
+        const lastArrivalKm = () => {
+            const arr = logs.value.filter(l => l.type === 'arrival' && l.mileage);
+            return arr.length ? Number(arr[arr.length - 1].mileage) : Number(startMileage.value);
+        };
+
+        const mileageIssue = (km) => {
+            if (!Number.isFinite(km) || km <= 0) return 'メーターが入力されていません。';
+            const prev = lastArrivalKm();
+            if (km < prev) return `メーターが前回(${prev}km)より小さくなっています。`;
+            const leg = km - prev;
+            if (leg > MAX_LEG_KM) return `前回から ${leg}km 走ったことになります。桁を間違えていませんか。`;
+            return '';
+        };
+
+        // 保存済みの記録を検査して、履歴一覧に印を出す
+        const historyIssue = (item) => {
+            if (!item) return '';
+            const total = Number(item.totalDistance);
+            if (Number.isFinite(total)) {
+                if (total < 0) return 'メーターが戻っています';
+                if (total > MAX_DAY_KM) return `走行 ${total}km`;
+            }
+            let prev = Number(item.startMileage) || 0;
+            const list = item.logs || [];
+            for (let i = 0; i < list.length; i++) {
+                const l = list[i];
+                if (l.type !== 'arrival' || !l.mileage) continue;
+                const km = Number(l.mileage);
+                if (km < prev) return 'メーターが戻っています';
+                if (km - prev > MAX_LEG_KM) return `区間 ${km - prev}km`;
+                prev = km;
+            }
+            return '';
+        };
+
         // --- Core Actions ---
         const startWork = () => {
             const km = Number(inputBuffer.value);
@@ -586,19 +646,32 @@ createApp({
             tempLat.value = loc.lat;
             tempLon.value = loc.lon;
             tempAccuracy.value = loc.accuracy;
+            tempTollFee.value = '';
+            tempParkingFee.value = '';
+            refreshCandidates();   // 到着した時点で近くの配送先を出しておく
             loading.value = false;
             screen.value = 'mileage_check';
             inputBuffer.value = '';
         };
 
         const confirmArrival = () => {
+            const km = Number(inputBuffer.value);
+            const issue = mileageIssue(km);
+            if (issue && !confirm(issue + '\nこのまま記録しますか？')) return;
+
             saveStateForUndo();
-            logs.value.push({ 
-                type: 'arrival', 
-                time: tempTime.value, 
-                address: tempAddress.value, 
-                mileage: Number(inputBuffer.value) 
-            });
+            const log = {
+                type: 'arrival',
+                time: tempTime.value,
+                address: tempAddress.value,
+                mileage: km
+            };
+            // 立替は入力があったときだけ持たせる(format-spec §1)
+            const toll = Number(tempTollFee.value);
+            const park = Number(tempParkingFee.value);
+            if (Number.isFinite(toll) && toll > 0) log.tollFee = toll;
+            if (Number.isFinite(park) && park > 0) log.parkingFee = park;
+            logs.value.push(log);
             lastAction.value = 'arrival';
             screen.value = 'dashboard';
             inputBuffer.value = '';
@@ -617,28 +690,39 @@ createApp({
             tempDestinationName.value = '';
             tempPaymentMethod.value = '現金';
             tempRemarks.value = '';
-            showCandidateList.value = false;
+            refreshCandidates();
+            // 一度行った場所なら、押さなくても候補が出るようにする
+            showCandidateList.value = filteredCandidates.value.length > 0;
             screen.value = 'departure_check';
+        };
+
+        // 探す半径。固定 150m だと、測位が粗い日は登録済みの場所が1件も入らず
+        // 候補が出なかった。GPS の誤差ぶんを足して広げる
+        const candidateRadius = () => {
+            const acc = Number(tempAccuracy.value) || 0;
+            return Math.min(400, Math.max(150, acc + 100));
+        };
+
+        const refreshCandidates = () => {
+            if (!tempLat.value || !tempLon.value) { filteredCandidates.value = []; return; }
+            const radius = candidateRadius();
+            const seen = new Set();
+            const list = [];
+            savedLocations.value
+                .map((loc) => ({ loc, d: getDistance(tempLat.value, tempLon.value, loc.lat, loc.lon) }))
+                .filter((x) => x.d < radius)
+                .sort((a, b) => a.d - b.d)          // 近い順
+                .forEach(({ loc }) => {
+                    if (seen.has(loc.name)) return;
+                    seen.add(loc.name);
+                    list.push(loc);
+                });
+            filteredCandidates.value = list;
         };
 
         const toggleCandidateList = () => {
             showCandidateList.value = !showCandidateList.value;
-            if (showCandidateList.value && tempLat.value && tempLon.value) {
-                const nearby = savedLocations.value.filter(loc => 
-                    getDistance(tempLat.value, tempLon.value, loc.lat, loc.lon) < 150
-                );
-                const seenNames = new Set();
-                const uniqueCandidates = [];
-                nearby.forEach(loc => {
-                    if (!seenNames.has(loc.name)) {
-                        seenNames.add(loc.name);
-                        uniqueCandidates.push(loc);
-                    }
-                });
-                filteredCandidates.value = uniqueCandidates;
-            } else {
-                filteredCandidates.value = [];
-            }
+            if (showCandidateList.value) refreshCandidates();
         };
 
         const selectCandidate = (name) => {
@@ -652,7 +736,7 @@ createApp({
                 !(loc.name === candidate.name && Math.abs(loc.lat - candidate.lat) < 0.0001 && Math.abs(loc.lon - candidate.lon) < 0.0001)
             );
             saveLocations();
-            toggleCandidateList(); 
+            refreshCandidates();
             showCandidateList.value = true;
         };
 
@@ -699,12 +783,16 @@ createApp({
         };
 
         const saveAndReset = () => {
+            const total = calculateTotalDistance.value;
+            if (total > MAX_DAY_KM &&
+                !confirm(`本日の走行が ${total}km になっています。\nメーターの桁を間違えていませんか。\n\nこのまま完了しますか？`)) return;
             if(!confirm('本日の業務を完了しますか？')) return;
             const todayStr = formatDateStr(new Date());
             historyList.value.unshift({
                 dateStr: todayStr,
                 startMileage: startMileage.value,
                 startTime: startTime.value,
+                vehicleNo: vehicleNumber.value,
                 logs: logs.value,
                 totalDistance: calculateTotalDistance.value
             });
@@ -813,6 +901,7 @@ createApp({
             d.setDate(d.getDate() - 1);
             historyData.value = {
                 dateStr: formatDateStr(d),
+                vehicleNo: vehicleNumber.value || '',
                 startMileage: 0,
                 startTime: '',
                 logs: [],
@@ -872,7 +961,8 @@ createApp({
 
             // Modal & Data
             // 【修正 #6】tempLocation エイリアスを廃止し tempAddress に統一
-            tempAddress, tempTime, tempAccuracy,
+            tempAddress, tempTime, tempAccuracy, tempTollFee, tempParkingFee,
+            historyIssue,
             tempDepartureTime, tempDestinationName, tempPaymentMethod, tempRemarks, paymentOptions,
             confirmDeparture, handleArrival, confirmArrival, cancelModal, handleDeparture,
 
@@ -890,6 +980,7 @@ createApp({
             // Edit Mode
             isEditing, editBuffer, enterEditMode, saveEditMode, cancelEditMode, removeGroupFromBuffer,
             isNewPastEntry, addGroupToBuffer, startPastEntry, editDateInput,
+            refreshCandidates,
             getEditLastMileage, calculateEditTotalDistance
         };
     }

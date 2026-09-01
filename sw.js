@@ -1,10 +1,15 @@
 /* Service Worker — 配送中は電波が届かないことがあるので、
  * アプリ本体と依存はすべて事前にキャッシュして同一オリジンから配る。
  *
- * ファイルを足す・消すときは PRECACHE の一覧と CACHE の版を必ず一緒に更新する。
- * 版を上げないと古いキャッシュが残り続ける。
+ * 取り出し方は2通りに分けている。
+ *   vendor/ 配下   … バージョンを固定した資産。中身が変わらないのでキャッシュ優先
+ *   それ以外       … アプリ本体。ネットワーク優先にして、更新をすぐ届ける
+ *                    （圏外ならキャッシュへ落ちるので、オフラインでも起動する）
+ *
+ * ファイルを足す・消すときは PRECACHE の一覧を更新する。
+ * CACHE の版を上げると、次回オンラインで開いたときに古いキャッシュを丸ごと捨てる。
  */
-const CACHE = 'nagata-nippo-v1';
+const CACHE = 'nagata-nippo-v2';
 
 const PRECACHE = [
   './',
@@ -42,6 +47,14 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+const putInCache = (req, res) => {
+  if (res && res.status === 200 && res.type === 'basic') {
+    const copy = res.clone();
+    caches.open(CACHE).then((cache) => cache.put(req, copy));
+  }
+  return res;
+};
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
@@ -51,28 +64,20 @@ self.addEventListener('fetch', (event) => {
   // 住所は現在地ごとに変わるのでキャッシュしても当たらないうえ、古い住所を返すと害になる
   if (url.origin !== self.location.origin) return;
 
-  // 画面遷移はネットワークを先に試し、圏外ならキャッシュの index.html を返す
-  if (req.mode === 'navigate') {
+  // 固定バージョンの資産はキャッシュ優先
+  if (url.pathname.includes('/vendor/')) {
     event.respondWith(
-      fetch(req)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((cache) => cache.put(req, copy));
-          return res;
-        })
-        .catch(() => caches.match(req).then((hit) => hit || caches.match('./index.html')))
+      caches.match(req).then((hit) => hit || fetch(req).then((res) => putInCache(req, res)))
     );
     return;
   }
 
-  // それ以外の同一オリジン資産はキャッシュ優先。取れたものは次回のために保存する
+  // アプリ本体はネットワーク優先。圏外ならキャッシュへ落ちる
   event.respondWith(
-    caches.match(req).then((hit) => hit || fetch(req).then((res) => {
-      if (res && res.status === 200 && res.type === 'basic') {
-        const copy = res.clone();
-        caches.open(CACHE).then((cache) => cache.put(req, copy));
-      }
-      return res;
-    }))
+    fetch(req)
+      .then((res) => putInCache(req, res))
+      .catch(() => caches.match(req).then((hit) =>
+        hit || (req.mode === 'navigate' ? caches.match('./index.html') : Promise.reject(new Error('offline')))
+      ))
   );
 });

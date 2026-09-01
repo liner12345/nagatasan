@@ -31,6 +31,16 @@ All notable changes to this project will be documented in this file.
   file is committed, so serving the app still needs no build step.
 - `.safe-top` in `style.css`. The header in `index.html` has carried that class from the start
   but it was never defined anywhere, so the header sat under the iPhone notch.
+- Toll and parking fees, entered on the arrival screen and editable per case. They are summed
+  per day into the nippo's `C25` / `C26` (format-spec §1, §4.1). The sheet has always had
+  those cells; nothing ever filled them.
+- A mileage check. An odometer reading below the previous one, or more than 200 km past it,
+  now asks before it is recorded, and so does finishing a day over 300 km. The thresholds come
+  from the real data (110 days, 311 legs): the largest plausible leg is 108 km with the next
+  one at 512 km, and the largest plausible day is 98 km with the next at 1002 km.
+- A warning badge on history entries that fail the same check, so records already stored can
+  be found. Six of the 110 days in the current data are flagged.
+- `vehicleNo` on each history entry, editable in the editor.
 
 ### Changed
 - `index.html` to include appropriate `<link>` tags for the new icons and the manifest file.
@@ -57,6 +67,15 @@ All notable changes to this project will be documented in this file.
   and cdn.tailwindcss.com is the play CDN that Tailwind documents as unfit for production.
 - `manifest.json` declares `favicon.svg` with `sizes: "any"`, plus `id` and `scope`. No icon
   was 192px or larger, which Android requires before it will offer to install the app.
+- Nearby destinations are offered without pressing anything: they are worked out on arrival,
+  and the list opens by itself on the departure screen when there is something to show.
+- The search radius follows the GPS accuracy (150-400 m) instead of a flat 150 m. With the
+  old fixed radius a coarse fix left nothing in range, which is why the feature so rarely
+  appeared to work.
+- Candidates are ordered by distance, nearest first.
+- The service worker serves the app itself network-first, falling back to the cache when
+  offline, and keeps cache-first only for `vendor/`. An update now reaches the app without
+  bumping the cache version.
 
 ### Fixed
 - The `User-Agent` header is no longer set on the Nominatim request. It is a forbidden
@@ -77,3 +96,4 @@ All notable changes to this project will be documented in this file.
 - Deleting the last history entry on a page left the list stranded on an empty page.
 - `startWork()` accepted an empty odometer reading as 0 and started the day anyway.
 - The dashboard read "案件1へ移動中" before work had even started.
+- Deleting a saved destination rebuilt the candidate list by toggling the panel twice.
