@@ -89,9 +89,12 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - **The vehicle-number history is a dropdown.** It used to be one row per entry; with the eight
   entries the app keeps, it ate about 400px and pushed the keypad and the start button off the
-  first screen. Picking from the dropdown fills the field, and the "×" beside it forgets the
-  number currently in the field (with a confirmation), which is what the per-row delete buttons
-  used to do.
+  first screen. The field and the history now read as one control: the number on the left, a
+  divider, and a chevron on the right with a transparent `<select>` over it, so tapping there
+  opens iOS's own picker. `select` was missing from the `-webkit-appearance: none` reset in
+  `style.css`, so a plain one came out in iOS's native chrome and looked nothing like the
+  fields beside it. Deleting an entry moved to the settings screen, where the eight numbers fit
+  as chips and there is room for it.
 - `tailwind.css` regenerated, and `package-lock.json` is now committed — the build had no
   lockfile, so `npm install` could resolve to different transitive versions each time.
 - The text share now goes **straight to LINE** — `https://line.me/R/share?text=`, one tap to

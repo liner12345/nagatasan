@@ -472,13 +472,6 @@ createApp({
             vehiclePick.value = '';
             if (no) await selectVehicleNumber(no);
         };
-        const canForgetVehicleNumber = computed(() =>
-            vehicleNumberHistory.value.indexOf(vehicleNumber.value) !== -1);
-        const forgetVehicleNumber = () => {
-            if (!canForgetVehicleNumber.value) return;
-            if (!confirm(`車両No「${vehicleNumber.value}」を履歴から消しますか？`)) return;
-            removeVehicleNumberFromHistory(vehicleNumber.value);
-        };
         const saveLocations = () => localStorage.setItem('nippoLocations', JSON.stringify(savedLocations.value));
 
         // --- Backup & Restore ---
@@ -1278,7 +1271,6 @@ createApp({
             screen, inputBuffer, loading, loadingText, lastAction, startMileage,
             historyList, viewingHistoryMode, historyData, showCopyToast, showTextToast, showSettings,
             vehicleNumber, vehicleNumberHistory, vehicleNumberInput, vehiclePick, pickVehicleNumber,
-            canForgetVehicleNumber, forgetVehicleNumber,
             moveVehicleCaretToEnd, saveVehicleNumber, selectVehicleNumber, removeVehicleNumberFromHistory, startTime, undoStack, undo, handleHeaderBack,
             
             // Keypad

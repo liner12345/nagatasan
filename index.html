@@ -51,17 +51,19 @@
                         <label class="text-xs font-bold text-gray-500">
                             <i class="fa-solid fa-car"></i> 車両No
                         </label>
-                        <div class="flex items-center gap-1">
-                            <input type="tel" pattern="[0-9]*" v-model="vehicleNumber" maxlength="4" placeholder="0000" class="h-12 bg-gray-50 border border-gray-200 text-gray-800 text-lg font-bold rounded-xl focus:ring-blue-500 focus:border-blue-500 block w-20 text-center shadow-sm" @input="saveVehicleNumber" @focus="moveVehicleCaretToEnd" @click="moveVehicleCaretToEnd" ref="vehicleNumberInput">
-                            <select v-if="vehicleNumberHistory.length" v-model="vehiclePick" @change="pickVehicleNumber"
-                                    aria-label="最近の車両No" title="最近の車両No"
-                                    class="h-12 w-14 bg-gray-50 border border-gray-200 text-gray-600 text-sm font-bold rounded-xl shadow-sm text-center focus:ring-blue-500 focus:border-blue-500">
-                                <option value="">履歴</option>
-                                <option v-for="item in vehicleNumberHistory" :key="item" :value="item">{{ item }}</option>
-                            </select>
-                            <button v-if="canForgetVehicleNumber" @click="forgetVehicleNumber" class="tap-target rounded-xl bg-gray-50 hover:bg-red-50 text-gray-400 hover:text-red-500 border border-gray-200 transition-colors" aria-label="この車両Noを履歴から消す" title="この車両Noを履歴から消す">
-                                <i class="fa-solid fa-xmark"></i>
-                            </button>
+                        <!-- 入力欄と履歴を1つの部品に見せる。select は透明にして
+                             右端のｖ印に重ねてあるので、そこを押すと iOS の選択画面が出る。
+                             select を素のまま置くと iOS が独自の外観で描いて浮く -->
+                        <div class="vehicle-field flex items-center h-12 bg-gray-50 border border-gray-200 rounded-xl shadow-sm overflow-hidden" :class="{ 'w-32': vehicleNumberHistory.length, 'w-24': !vehicleNumberHistory.length }">
+                            <input type="tel" pattern="[0-9]*" v-model="vehicleNumber" maxlength="4" placeholder="0000" class="flex-1 min-w-0 h-full bg-transparent border-0 text-gray-800 text-lg font-bold text-center focus:outline-none" @input="saveVehicleNumber" @focus="moveVehicleCaretToEnd" @click="moveVehicleCaretToEnd" ref="vehicleNumberInput">
+                            <div v-if="vehicleNumberHistory.length" class="relative h-full w-11 flex-shrink-0 flex items-center justify-center border-l border-gray-200 text-gray-400">
+                                <i class="fa-solid fa-chevron-down text-xs"></i>
+                                <select v-model="vehiclePick" @change="pickVehicleNumber" aria-label="最近の車両Noから選ぶ"
+                                        class="absolute inset-0 w-full h-full opacity-0">
+                                    <option value="">履歴から選ぶ</option>
+                                    <option v-for="item in vehicleNumberHistory" :key="item" :value="item">{{ item }}</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
@@ -109,6 +111,17 @@
                         <button @click="$refs.fileInput.click()" class="w-full bg-orange-50 text-orange-700 border border-orange-200 font-bold py-3 rounded-xl flex items-center justify-center gap-2">
                             <i class="fa-solid fa-upload"></i> バックアップから復元
                         </button>
+                    </div>
+                    <div v-if="vehicleNumberHistory.length" class="border-t border-gray-100 pt-4">
+                        <label class="text-xs font-bold text-gray-500 block mb-2">車両Noの履歴（起動画面のプルダウンに出ます）</label>
+                        <div class="flex flex-wrap gap-2">
+                            <span v-for="item in vehicleNumberHistory" :key="item" class="flex items-center bg-gray-50 border border-gray-200 rounded-full pl-3 text-sm font-bold text-gray-700">
+                                {{ item }}
+                                <button @click="removeVehicleNumberFromHistory(item)" class="tap-target text-gray-400 hover:text-red-500 transition-colors" :aria-label="item + ' を履歴から消す'">
+                                    <i class="fa-solid fa-xmark text-xs"></i>
+                                </button>
+                            </span>
+                        </div>
                     </div>
                     <div class="border-t border-gray-100 my-2"></div>
                     <button @click="clearLocations" class="w-full bg-red-50 text-red-600 border border-red-200 font-bold py-3 rounded-xl flex items-center justify-center gap-2">

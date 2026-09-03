@@ -112,9 +112,17 @@ body {
 }
 
 /* --- Input Styles --- */
-input[type="time"], input[type="text"], input[type="tel"], input[type="number"] {
+/* select を外すと iOS が独自の外観（上下の山印）で描き、他の入力欄から浮く */
+input[type="time"], input[type="text"], input[type="tel"], input[type="number"], select {
     -webkit-appearance: none;
     appearance: none;
+}
+
+/* 車両No。入力欄と履歴のｖ印を1つの枠に見せる。
+   枠側で focus を受けるので、中の input からは枠線を消してある */
+.vehicle-field:focus-within {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 input[type="time"]::-webkit-calendar-picker-indicator {
     display: none;
