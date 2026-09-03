@@ -15,6 +15,7 @@ createApp({
         const vehicleNumber = ref('');
         const vehicleNumberHistory = ref([]);
         const vehicleNumberInput = ref(null);
+        const vehiclePick = ref('');   // 履歴プルダウンの選択値。選ぶたびに空へ戻す
         const startTime = ref('');
         const undoStack = ref([]);
         const driverName = ref('');
@@ -463,6 +464,20 @@ createApp({
         const removeVehicleNumberFromHistory = (no) => {
             vehicleNumberHistory.value = vehicleNumberHistory.value.filter(item => item !== no);
             saveVehicleNumberHistory();
+        };
+        // 履歴はプルダウンで選ぶ。選んだら値を入力欄へ移し、選択状態は戻す
+        // （同じ番号を選び直せるようにするため）
+        const pickVehicleNumber = async () => {
+            const no = vehiclePick.value;
+            vehiclePick.value = '';
+            if (no) await selectVehicleNumber(no);
+        };
+        const canForgetVehicleNumber = computed(() =>
+            vehicleNumberHistory.value.indexOf(vehicleNumber.value) !== -1);
+        const forgetVehicleNumber = () => {
+            if (!canForgetVehicleNumber.value) return;
+            if (!confirm(`車両No「${vehicleNumber.value}」を履歴から消しますか？`)) return;
+            removeVehicleNumberFromHistory(vehicleNumber.value);
         };
         const saveLocations = () => localStorage.setItem('nippoLocations', JSON.stringify(savedLocations.value));
 
@@ -1262,7 +1277,9 @@ createApp({
         return {
             screen, inputBuffer, loading, loadingText, lastAction, startMileage,
             historyList, viewingHistoryMode, historyData, showCopyToast, showTextToast, showSettings,
-            vehicleNumber, vehicleNumberHistory, vehicleNumberInput, moveVehicleCaretToEnd, saveVehicleNumber, selectVehicleNumber, removeVehicleNumberFromHistory, startTime, undoStack, undo, handleHeaderBack,
+            vehicleNumber, vehicleNumberHistory, vehicleNumberInput, vehiclePick, pickVehicleNumber,
+            canForgetVehicleNumber, forgetVehicleNumber,
+            moveVehicleCaretToEnd, saveVehicleNumber, selectVehicleNumber, removeVehicleNumberFromHistory, startTime, undoStack, undo, handleHeaderBack,
             
             // Keypad
             appendDigit, removeDigit, getDisplayDigit,

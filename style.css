@@ -23,21 +23,37 @@ body {
     position: relative;
 }
 
-/* index.html のヘッダーが使っているが定義が無く、iPhone のノッチ下に潜り込んでいた。
-   h-14 (3.5rem) にセーフエリア分を足す */
+/* ヘッダーの高さ h-14 (3.5rem) にノッチ分を足す。
+   padding-top はノッチを避けるためだけに使い、上下の余白は入れない。
+   ヘッダー側の縦パディングと足し合わせると中身が中心からずれるので、
+   index.html のヘッダーは p-4 ではなく px-4 にしてある。
+   これで内容ボックスは常に 3.5rem になり、items-center が
+   ノッチの有無にかかわらず可視領域の中心に来る。
+   env() の第2引数は、セーフエリアを報告しない環境(ノッチ無し端末・
+   Safari のタブ表示)で calc() ごと無効にならないための既定値。 */
 .safe-top {
-    padding-top: env(safe-area-inset-top);
-    height: calc(3.5rem + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top, 0px);
+    height: calc(3.5rem + env(safe-area-inset-top, 0px));
     box-sizing: border-box;
+    /* 横向きにするとノッチ側に寄る。px-4 を下回らせない */
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
 }
 
 .scrollable-content {
-    flex: 1;
+    /* min-height:0 が無いと flex item の最小高が中身の高さになり、
+       縮まずにスクロールせず、はみ出したまま表示される */
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: none;
-    padding-bottom: env(safe-area-inset-bottom);
+    /* env() を単体で書くと、セーフエリアの無い端末で
+       Tailwind の p-4 (1rem) まで 0 に潰れる。max() で下限を守る */
+    padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
     position: relative;
     z-index: 10;
 }

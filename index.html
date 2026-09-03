@@ -21,7 +21,8 @@
 
 <div id="app" v-cloak>
 
-    <header class="bg-blue-600 text-white p-4 shadow-md z-30 flex-shrink-0 flex justify-between items-center h-14 safe-top">
+    <!-- 縦パディングは入れない。.safe-top の padding-top と足されると中身が中心からずれる -->
+    <header class="bg-blue-600 text-white px-4 shadow-md z-30 flex-shrink-0 flex justify-between items-center h-14 safe-top">
         <h1 class="text-lg font-bold flex items-center gap-2">
             <i class="fa-solid fa-truck-fast"></i> 配送日報 Pro
         </h1>
@@ -43,32 +44,32 @@
             <div v-if="!showSettings" class="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 text-center animate-slide-in">
                 <h2 class="text-xl font-bold mb-4 text-gray-800">業務開始</h2>
                 
+                <!-- 車両No の履歴はプルダウンに畳む。以前は1件1行で並べていて、
+                     8件たまると画面の3分の1を食い、キーパッドが押し出されていた -->
                 <div class="mb-5 flex justify-center gap-3">
-                    <div class="flex flex-col items-center gap-1">
+                    <div class="flex flex-col items-start gap-1">
                         <label class="text-xs font-bold text-gray-500">
                             <i class="fa-solid fa-car"></i> 車両No
                         </label>
-                        <input type="tel" pattern="[0-9]*" v-model="vehicleNumber" maxlength="4" placeholder="0000" class="h-12 bg-gray-50 border border-gray-200 text-gray-800 text-lg font-bold rounded-xl focus:ring-blue-500 focus:border-blue-500 block w-24 text-center shadow-sm" @input="saveVehicleNumber" @focus="moveVehicleCaretToEnd" @click="moveVehicleCaretToEnd" ref="vehicleNumberInput">
-                    </div>
-                    
-                    <div class="flex flex-col items-center gap-1">
-                        <label class="text-xs font-bold text-gray-500">
-                            <i class="fa-regular fa-clock"></i> 開始時刻
-                        </label>
-                        <input type="time" v-model="startTime" class="h-12 bg-gray-50 border border-gray-200 text-gray-800 text-lg font-bold rounded-xl focus:ring-blue-500 focus:border-blue-500 block w-32 shadow-sm">
-                    </div>
-                </div>
-                <div v-if="vehicleNumberHistory.length" class="mb-5 text-left">
-                    <p class="text-xs font-bold text-gray-500 mb-2">最近の車両No（タップで入力）</p>
-                    <div class="space-y-2">
-                        <div v-for="item in vehicleNumberHistory" :key="item" class="flex items-center gap-2">
-                            <button @click="selectVehicleNumber(item)" class="flex-1 text-left bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold text-gray-700 transition-colors">
-                                {{ item }}
-                            </button>
-                            <button @click="removeVehicleNumberFromHistory(item)" class="tap-target rounded-full bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-500 text-xs border border-gray-200 transition-colors" aria-label="車両No履歴を削除">
+                        <div class="flex items-center gap-1">
+                            <input type="tel" pattern="[0-9]*" v-model="vehicleNumber" maxlength="4" placeholder="0000" class="h-12 bg-gray-50 border border-gray-200 text-gray-800 text-lg font-bold rounded-xl focus:ring-blue-500 focus:border-blue-500 block w-20 text-center shadow-sm" @input="saveVehicleNumber" @focus="moveVehicleCaretToEnd" @click="moveVehicleCaretToEnd" ref="vehicleNumberInput">
+                            <select v-if="vehicleNumberHistory.length" v-model="vehiclePick" @change="pickVehicleNumber"
+                                    aria-label="最近の車両No" title="最近の車両No"
+                                    class="h-12 w-14 bg-gray-50 border border-gray-200 text-gray-600 text-sm font-bold rounded-xl shadow-sm text-center focus:ring-blue-500 focus:border-blue-500">
+                                <option value="">履歴</option>
+                                <option v-for="item in vehicleNumberHistory" :key="item" :value="item">{{ item }}</option>
+                            </select>
+                            <button v-if="canForgetVehicleNumber" @click="forgetVehicleNumber" class="tap-target rounded-xl bg-gray-50 hover:bg-red-50 text-gray-400 hover:text-red-500 border border-gray-200 transition-colors" aria-label="この車両Noを履歴から消す" title="この車両Noを履歴から消す">
                                 <i class="fa-solid fa-xmark"></i>
                             </button>
                         </div>
+                    </div>
+
+                    <div class="flex flex-col items-start gap-1">
+                        <label class="text-xs font-bold text-gray-500">
+                            <i class="fa-regular fa-clock"></i> 開始時刻
+                        </label>
+                        <input type="time" v-model="startTime" class="h-12 bg-gray-50 border border-gray-200 text-gray-800 text-lg font-bold rounded-xl focus:ring-blue-500 focus:border-blue-500 block w-28 shadow-sm">
                     </div>
                 </div>
 
@@ -124,12 +125,15 @@
 
             <div v-if="!showSettings" class="animate-slide-in" style="animation-delay: 0.1s;">
                 <div class="flex justify-between items-center mb-3 px-2 mt-4">
-                    <h3 class="text-sm font-bold text-gray-500">完了した日報（履歴）</h3>
-                    <div class="flex items-center gap-2">
-                        <button @click="startPastEntry" class="text-xs text-blue-600 font-bold bg-white px-3 py-1.5 rounded-full border border-blue-200 shadow-sm flex items-center gap-1">
+                    <!-- 見出しが「完了した日報（履歴）」だと 390px 幅に収まらず、
+                         見出しもボタン2つも3つとも2行に折り返していた。
+                         「（履歴）」を落として折り返しを禁じれば、ラベル付きのまま収まる -->
+                    <h3 class="text-sm font-bold text-gray-500 whitespace-nowrap">完了した日報</h3>
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        <button @click="startPastEntry" class="text-xs text-blue-600 font-bold bg-white px-3 py-2 rounded-full border border-blue-200 shadow-sm flex items-center gap-1 whitespace-nowrap">
                             <i class="fa-solid fa-calendar-plus"></i> 過去の日を記録
                         </button>
-                        <button @click="showSettings = true" class="text-xs text-gray-500 font-bold bg-white px-3 py-1.5 rounded-full border border-gray-200 shadow-sm flex items-center gap-1">
+                        <button @click="showSettings = true" class="text-xs text-gray-500 font-bold bg-white px-3 py-2 rounded-full border border-gray-200 shadow-sm flex items-center gap-1 whitespace-nowrap">
                             <i class="fa-solid fa-gear"></i> データ管理
                         </button>
                     </div>
@@ -214,7 +218,7 @@
                 </div>
                 <div v-if="todaySummary.lastName" class="mt-3 pt-3 border-t border-gray-100 text-sm text-gray-600 truncate">
                     直近 <span class="font-bold text-gray-800">{{ todaySummary.lastName }}</span>
-                    <span class="text-gray-500">{{ todaySummary.lastTime }}発</span>
+                    <span class="text-gray-500 ml-1">{{ todaySummary.lastTime }}発</span>
                 </div>
             </div>
 

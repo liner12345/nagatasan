@@ -68,7 +68,32 @@ All notable changes to this project will be documented in this file.
 - A summary on the dashboard: cases completed, distance so far, advanced fees, and where the
   last delivery was. The screen used to hold two buttons and nothing else.
 
+### Fixed
+- The header logo sat too high. `.safe-top` set `padding-top: env(safe-area-inset-top)`, which
+  **overrode the header's `p-4` top padding** — so on anything that reports no safe area (a
+  phone without a notch, Safari's tabbed view) the top padding collapsed to 0 while the bottom
+  stayed at 16px, and `items-center` centred the title 8px above the middle. With a notch it
+  was off the other way. The header now carries `px-4` instead of `p-4`, so `.safe-top`'s
+  padding only clears the notch and the content box is always 3.5rem. Measured: title centre
+  28px, header centre 28px.
+- The same bug at the bottom: `.scrollable-content`'s `padding-bottom: env(safe-area-inset-bottom)`
+  wiped out `p-4`'s 16px on devices with no bottom inset, so the last element sat flush against
+  the edge. Now `max(1rem, env(...))`.
+- `.scrollable-content` had no `min-height: 0`. A flex item's minimum height defaults to its
+  content, so the scroll area could refuse to shrink and overflow instead of scrolling.
+- Left/right safe-area insets are respected, for landscape on a notched phone.
+- The history section heading wrapped onto two lines, and so did both buttons next to it
+  ("過去の日を記" / "録", "データ管" / "理"): "完了した日報（履歴）" plus two labelled buttons
+  is 392px, two pixels wider than a 390px phone. Dropping "（履歴）" brings it to 332px.
+
 ### Changed
+- **The vehicle-number history is a dropdown.** It used to be one row per entry; with the eight
+  entries the app keeps, it ate about 400px and pushed the keypad and the start button off the
+  first screen. Picking from the dropdown fills the field, and the "×" beside it forgets the
+  number currently in the field (with a confirmation), which is what the per-row delete buttons
+  used to do.
+- `tailwind.css` regenerated, and `package-lock.json` is now committed — the build had no
+  lockfile, so `npm install` could resolve to different transitive versions each time.
 - The text share now goes **straight to LINE** — `https://line.me/R/share?text=`, one tap to
   LINE's recipient picker — instead of calling `navigator.share()` first and putting the OS
   share sheet in the way. This is what hamanippo has always done
