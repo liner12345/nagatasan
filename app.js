@@ -56,6 +56,7 @@ createApp({
 
         // UI Temps
         const showCopyToast = ref(false);
+        const showTextToast = ref(false);
         const tempAddress = ref('');
         const tempTime = ref('');
         // 立替。空文字のまま確定したら記録しない(0 と未入力を区別する)
@@ -998,31 +999,26 @@ createApp({
             return out.join('\n');
         };
 
-        const shareReport = async () => {
+        // LINE を直接開き、送信先選択画面まで1タップで飛ぶ。
+        // hamanippo の「LINEで直接送る」(apps/hamanippo/app.js:1376-1379) と同じ手。
+        // navigator.share を先に呼ぶと OS の共有シートが挟まって2段階になるので使わない。
+        // このURLで渡せるのは**テキストだけ**（LINE URLスキームの仕様）。
+        // ファイルを添付するなら共有シートを通すしかない → shareNippoPdf
+        const shareReport = () => {
             const text = buildReportText();
-            // 1) OS の共有シート。LINE を含めて送り先を選べる(iOS / Android)
-            if (navigator.share) {
-                try {
-                    await navigator.share({ text });
-                    return;
-                } catch (e) {
-                    if (e && e.name === 'AbortError') return;   // ユーザーが閉じただけ
-                }
-            }
-            // 2) 共有シートが無い環境では LINE を直接開く
-            if (confirm('LINEを開いて送りますか？\n（キャンセルするとテキストをコピーします）')) {
-                window.location.href = 'https://line.me/R/share?text=' + encodeURIComponent(text);
+            window.location.href = 'https://line.me/R/share?text=' + encodeURIComponent(text);
+        };
+
+        const copyReportText = () => {
+            const text = buildReportText();
+            if (!navigator.clipboard || !navigator.clipboard.writeText) {
+                alert('この環境ではコピーできません。');
                 return;
             }
-            // 3) それも使えなければクリップボードへ
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text).then(() => {
-                    showCopyToast.value = true;
-                    setTimeout(() => showCopyToast.value = false, 2000);
-                }).catch(() => alert('コピーできませんでした。'));
-            } else {
-                alert('この環境では共有もコピーもできません。');
-            }
+            navigator.clipboard.writeText(text).then(() => {
+                showTextToast.value = true;
+                setTimeout(() => showTextToast.value = false, 2000);
+            }).catch(() => alert('コピーできませんでした。'));
         };
 
         // --- 日報 PDF（format-spec §4.7） ---
@@ -1265,7 +1261,7 @@ createApp({
 
         return {
             screen, inputBuffer, loading, loadingText, lastAction, startMileage,
-            historyList, viewingHistoryMode, historyData, showCopyToast, showSettings,
+            historyList, viewingHistoryMode, historyData, showCopyToast, showTextToast, showSettings,
             vehicleNumber, vehicleNumberHistory, vehicleNumberInput, moveVehicleCaretToEnd, saveVehicleNumber, selectVehicleNumber, removeVehicleNumberFromHistory, startTime, undoStack, undo, handleHeaderBack,
             
             // Keypad
@@ -1289,7 +1285,7 @@ createApp({
             startWork, goToSummary, backToDashboard, saveAndReset, viewHistory, closeSubScreens,
             groupedLogs, calculateTotalDistance, getLastMileage, copyToClipboard, getStatusText,
             todaySummary,
-            buildReportText, shareReport,
+            buildReportText, shareReport, copyReportText,
 
             // 当日実績と日報PDF
             DAILY_FIELDS, activeDaily, persistDaily, dailyFilled, nippoFare, tatekaeTotal,

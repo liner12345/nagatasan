@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
   the PC every single day. They are stored as `history[].daily` and ride along in the backup
   JSON, so `01_nippo.py` can fill `C19`–`C24` (format-spec §1, §4.1). The screen shows the
   resulting fare as you type, so a typo is visible before the day is closed.
-- `nippo-pdf.js` and a "日報PDFをLINEで送る" button. It draws the nippo form
+- `nippo-pdf.js` and a "日報PDFを送る" button. It draws the nippo form
   (`fmt.build_nippo`, A1:H37) on a canvas and wraps it in a one-page PDF, then hands it to
   `navigator.share({files})`. The report used to have to travel to the PC and back before it
   could be sent as a PDF. No library and no embedded font: the page is an image, so the text
@@ -69,9 +69,16 @@ All notable changes to this project will be documented in this file.
   last delivery was. The screen used to hold two buttons and nothing else.
 
 ### Changed
-- The report screen's primary button is now the PDF one. The text share added earlier is kept
-  as a secondary button ("文章でLINEに送る") — it is faster to read in a chat, but it is not the
-  document the client is owed.
+- The text share now goes **straight to LINE** — `https://line.me/R/share?text=`, one tap to
+  LINE's recipient picker — instead of calling `navigator.share()` first and putting the OS
+  share sheet in the way. This is what hamanippo has always done
+  (`apps/hamanippo/app.js:1376-1379`); nagatasan was the odd one out.
+  **The PDF cannot take that route.** No LINE URL scheme, LIFF API or Messaging API message
+  type accepts a local file, so `navigator.share({files})` — and therefore the share sheet —
+  is the only way to hand LINE a PDF. The button says so, so the extra tap is not a surprise.
+- The report screen's primary button is now the PDF one, with the text share below it.
+- The copy buttons no longer share one toast flag; pressing one used to make both say
+  "コピーしました！".
 - `sw.js` `CACHE` to `v4`, and `nippo-pdf.js` added to `PRECACHE`.
 - `index.html` to include appropriate `<link>` tags for the new icons and the manifest file.
 - `getCurrentLocation()` now waits for the GPS accuracy to converge with `watchPosition()`

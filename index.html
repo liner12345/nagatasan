@@ -434,12 +434,24 @@
             </div>
 
             <div class="flex flex-col gap-3 mt-4" v-if="!isEditing">
-                <button @click="shareNippoPdf" :disabled="sharingPdf" class="w-full bg-[#06C755] hover:bg-[#05b04c] disabled:bg-gray-300 text-white font-bold py-4 rounded-2xl shadow-md btn-press flex items-center justify-center gap-2 transition-colors text-lg">
-                    <i class="fa-solid fa-file-pdf text-xl"></i> 日報PDFをLINEで送る
+                <div>
+                    <button @click="shareNippoPdf" :disabled="sharingPdf" class="w-full bg-[#06C755] hover:bg-[#05b04c] disabled:bg-gray-300 text-white font-bold py-4 rounded-2xl shadow-md btn-press flex items-center justify-center gap-2 transition-colors text-lg">
+                        <i class="fa-solid fa-file-pdf text-xl"></i> 日報PDFを送る
+                    </button>
+                    <!-- ファイルを添付できる LINE の URL スキームは存在しないので、
+                         PDF は共有シートを通すしかない（format-spec §4.7） -->
+                    <p class="text-xs text-gray-500 mt-1.5 px-1">
+                        共有画面が開くので LINE を選んでください。ここだけ1回タップが多くなります。
+                    </p>
+                </div>
+
+                <button @click="shareReport" class="w-full bg-white border-2 border-[#06C755] text-[#06C755] font-bold py-3.5 rounded-2xl btn-press flex items-center justify-center gap-2 transition-colors">
+                    <i class="fa-solid fa-paper-plane"></i> LINEで直接送る（文章）
                 </button>
 
-                <button @click="shareReport" class="w-full bg-white border border-[#06C755] text-[#06C755] font-bold py-3 rounded-2xl btn-press flex items-center justify-center gap-2 transition-colors text-sm">
-                    <i class="fa-solid fa-paper-plane"></i> 文章でLINEに送る
+                <button @click="copyReportText" class="w-full bg-white border border-gray-200 text-gray-500 font-bold py-3 rounded-2xl btn-press flex items-center justify-center gap-2 transition-colors text-sm">
+                    <i class="fa-regular fa-copy"></i>
+                    {{ showTextToast ? 'コピーしました！' : '文章をコピー' }}
                 </button>
 
                 <button @click="copyToClipboard" class="w-full bg-white border border-gray-200 text-gray-500 font-bold py-3 rounded-2xl btn-press flex items-center justify-center gap-2 transition-colors text-sm">
