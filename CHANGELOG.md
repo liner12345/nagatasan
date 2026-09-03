@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- The day's results (`①回収距離` `①回収箱数` `②配達数` `③追加配達` `④作業・待機` `⑤夏季手当`)
+  on the report screen. These six numbers decide the collection and handling fees, and until
+  now they existed nowhere in the app: they had to be typed into the nippo's yellow cells on
+  the PC every single day. They are stored as `history[].daily` and ride along in the backup
+  JSON, so `01_nippo.py` can fill `C19`–`C24` (format-spec §1, §4.1). The screen shows the
+  resulting fare as you type, so a typo is visible before the day is closed.
+- `nippo-pdf.js` and a "日報PDFをLINEで送る" button. It draws the nippo form
+  (`fmt.build_nippo`, A1:H37) on a canvas and wraps it in a one-page PDF, then hands it to
+  `navigator.share({files})`. The report used to have to travel to the PC and back before it
+  could be sent as a PDF. No library and no embedded font: the page is an image, so the text
+  in the PDF cannot be selected or searched — that is the price of not shipping a 数MB
+  Japanese font with an offline-first app.
+  - Lossless where `CompressionStream('deflate')` exists (Safari iOS 16.4+, Chrome 80+),
+    JPEG everywhere else. The PDF container is assembled by hand.
+  - The generated PDF is cached against the data it came from. iOS drops the user activation
+    while the PDF is being built, so the second press shares straight from the cache.
+  - `fareParts()` is a port of `fmt.fare_parts()`. **The fare now exists in three
+    implementations** (the sheet formula, Python, JS); `tests/test_fare_parity.py` in the hub
+    checks the last two against each other over a grid of boundary values.
+- A "名前" field in the settings, written to `driverName` in the backup so `01_nippo.py` can
+  fill the nippo's `F3`. That cell has always been left blank.
 - `apple-touch-icon.png` (180x180) for better iOS compatibility.
 - `favicon-32x32.png` and `favicon-16x16.png` for modern browser compatibility.
 - `manifest.json` for PWA capabilities and reliable icon recognition on home screens.
@@ -48,6 +69,10 @@ All notable changes to this project will be documented in this file.
   last delivery was. The screen used to hold two buttons and nothing else.
 
 ### Changed
+- The report screen's primary button is now the PDF one. The text share added earlier is kept
+  as a secondary button ("文章でLINEに送る") — it is faster to read in a chat, but it is not the
+  document the client is owed.
+- `sw.js` `CACHE` to `v4`, and `nippo-pdf.js` added to `PRECACHE`.
 - `index.html` to include appropriate `<link>` tags for the new icons and the manifest file.
 - `getCurrentLocation()` now waits for the GPS accuracy to converge with `watchPosition()`
   instead of recording the first fix from `getCurrentPosition()`. Devices return a coarse

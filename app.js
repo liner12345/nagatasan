@@ -17,7 +17,25 @@ createApp({
         const vehicleNumberInput = ref(null);
         const startTime = ref('');
         const undoStack = ref([]);
-        
+        const driverName = ref('');
+
+        // 当日実績（日報の黄色セル C19〜C24）。キー名は fmt.fare_parts() の引数と同じ。
+        // 空文字は「未入力」で、0 とは区別する（回収距離は未入力なら 0 円、0 なら 2,000 円）
+        const DAILY_FIELDS = [
+            { key: 'kaisyuKm', label: '①回収距離', unit: 'km' },
+            { key: 'hako',     label: '①回収箱数', unit: '箱' },
+            { key: 'shoku',    label: '②配達数',   unit: '食' },
+            { key: 'tsuika',   label: '③追加配達', unit: '件' },
+            { key: 'taiki',    label: '④作業・待機', unit: '分' },
+            { key: 'kaki',     label: '⑤夏季手当', unit: '円' }
+        ];
+        const emptyDaily = () => {
+            const d = {};
+            DAILY_FIELDS.forEach((f) => { d[f.key] = ''; });
+            return d;
+        };
+        const daily = ref(emptyDaily());
+
         // History & Settings
         const historyList = ref([]);
         const viewingHistoryMode = ref(false);
@@ -79,6 +97,7 @@ createApp({
                     lastAction.value = parsed.lastAction || 'none';
                     if (parsed.startTime) startTime.value = parsed.startTime;
                     if (parsed.undoStack) undoStack.value = parsed.undoStack;
+                    if (parsed.daily) daily.value = Object.assign(emptyDaily(), parsed.daily);
                 } catch(e) {
                     console.error('Data corrupted, reset');
                     // 【修正 #2】破損時にユーザーへ通知
@@ -100,6 +119,11 @@ createApp({
 
             const savedVehicleNo = localStorage.getItem('nippoVehicleNo');
             if (savedVehicleNo) vehicleNumber.value = savedVehicleNo;
+            driverName.value = localStorage.getItem('nippoDriverName') || '';
+            // 夏季手当だけは日をまたいで同じ額が続くので、前回値を初期値にする。
+            // 初回は 500 = 日報様式(build_nippo)の C24 の既定値に合わせる
+            const savedKaki = localStorage.getItem('nippoKakiFee');
+            if (daily.value.kaki === '') daily.value.kaki = savedKaki !== null ? savedKaki : 500;
             const savedVehicleNoHistory = localStorage.getItem('nippoVehicleNoHistory');
             if (savedVehicleNoHistory) {
                 try {
@@ -255,6 +279,9 @@ createApp({
                 // 日付や開始時刻を変えると書き戻し先を見失い、変更が黙って消えていた。
                 // 開いた時点のインデックスを使う
                 const saved = JSON.parse(JSON.stringify(historyData.value));
+                // 入力欄の当日実績は文字列。保存する側だけ数値にし、空欄のキーは落とす。
+                // 画面が持つ historyData.daily は入力用に全キーを残しておく
+                saved.daily = normalizeDaily(historyData.value.daily);
                 if (isNewPastEntry.value) {
                     historyList.value.push(saved);
                 } else if (editingIndex.value !== -1) {
@@ -332,16 +359,82 @@ createApp({
 
         // --- Save & Storage ---
         const saveData = () => {
-            const data = { 
-                screen: screen.value, 
-                startMileage: startMileage.value, 
-                logs: logs.value, 
-                lastAction: lastAction.value, 
+            const data = {
+                screen: screen.value,
+                startMileage: startMileage.value,
+                logs: logs.value,
+                lastAction: lastAction.value,
                 startTime: startTime.value,
-                undoStack: undoStack.value
+                undoStack: undoStack.value,
+                daily: daily.value
             };
             localStorage.setItem('nippoData_pro_v3', JSON.stringify(data));
         };
+        const saveDriverName = () => localStorage.setItem('nippoDriverName', driverName.value);
+
+        // --- 当日実績（日報 C19〜C24 / format-spec §1） ---
+        // 当日は daily、履歴を開いているときは historyData.daily を直接編集する。
+        // JSON に載せるときは空欄のキーを落とす（0 と未入力を区別するため）。
+
+        // 履歴を開くときに欠けているキーを補う。computed の中で書くと
+        // 描画中に状態を変えることになるので、入口で1回だけ整える
+        const fillDaily = (rec) => {
+            const src = rec.daily || {};
+            const out = emptyDaily();
+            DAILY_FIELDS.forEach((f) => {
+                if (src[f.key] !== undefined && src[f.key] !== null) out[f.key] = src[f.key];
+            });
+            rec.daily = out;
+        };
+
+        const activeDaily = computed(() => {
+            if (!viewingHistoryMode.value || !historyData.value) return daily.value;
+            return historyData.value.daily || daily.value;
+        });
+
+        const normalizeDaily = (src) => {
+            const out = {};
+            DAILY_FIELDS.forEach((f) => {
+                const raw = src ? src[f.key] : '';
+                if (raw === '' || raw === null || raw === undefined) return;
+                const v = Number(raw);
+                if (Number.isFinite(v)) out[f.key] = v;
+            });
+            return Object.keys(out).length ? out : undefined;
+        };
+
+        const dailyFilled = computed(() => !!normalizeDaily(activeDaily.value));
+
+        const persistDaily = () => {
+            const kaki = activeDaily.value.kaki;
+            if (kaki !== '' && kaki !== null && kaki !== undefined) {
+                localStorage.setItem('nippoKakiFee', String(kaki));
+            }
+            if (!viewingHistoryMode.value) { saveData(); return; }
+            // 履歴を開いているときは、その場で書き戻す（編集モードを通さない）
+            if (editingIndex.value !== -1 && historyList.value[editingIndex.value]) {
+                historyList.value[editingIndex.value].daily = normalizeDaily(activeDaily.value);
+                updateHistoryStorage();
+            }
+        };
+
+        // 確認画面に出す当日の運賃。日報の C34 と同じ値になる
+        const nippoFare = computed(() => {
+            const km = calculateTotalDistance.value;
+            const d = activeDaily.value;
+            const n = (x) => (x === '' || x === null || x === undefined ? null : Number(x));
+            const parts = NippoForm.fareParts(km, n(d.kaisyuKm), n(d.hako), n(d.shoku),
+                                              n(d.tsuika), n(d.taiki), n(d.kaki), NippoForm.KIHON);
+            return NippoForm.roundHalfEven(parts.total);
+        });
+
+        const tatekaeTotal = computed(() => {
+            let sum = 0;
+            activeLogs.value.forEach((l) => {
+                sum += (Number(l.tollFee) || 0) + (Number(l.parkingFee) || 0);
+            });
+            return sum;
+        });
         const updateHistoryStorage = () => localStorage.setItem('nippoHistory_v2', JSON.stringify(historyList.value));
         const moveVehicleCaretToEnd = async () => {
             await nextTick();
@@ -373,23 +466,28 @@ createApp({
         const saveLocations = () => localStorage.setItem('nippoLocations', JSON.stringify(savedLocations.value));
 
         // --- Backup & Restore ---
+        const downloadBlob = (blob, name) => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        };
+
         const downloadBackup = () => {
             const backupData = {
                 history: historyList.value,
                 locations: savedLocations.value,
                 vehicleNo: vehicleNumber.value,
                 vehicleNoHistory: vehicleNumberHistory.value,
+                driverName: driverName.value,   // 日報 F3（format-spec §1）
                 version: '3.9'
             };
             const blob = new Blob([JSON.stringify(backupData, null, 2)], {type: 'application/json'});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `nippo_backup_${new Date().toISOString().slice(0,10)}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            downloadBlob(blob, `nippo_backup_${new Date().toISOString().slice(0,10)}.json`);
         };
 
         const restoreBackup = (event) => {
@@ -411,6 +509,10 @@ createApp({
                         historyList.value = data.history;
                         if(Array.isArray(data.locations)) savedLocations.value = data.locations;
                         if(typeof data.vehicleNo === 'string') vehicleNumber.value = data.vehicleNo;
+                        if(typeof data.driverName === 'string') {
+                            driverName.value = data.driverName;
+                            saveDriverName();
+                        }
                         if(Array.isArray(data.vehicleNoHistory)) {
                             vehicleNumberHistory.value = data.vehicleNoHistory
                                 .map(v => String(v || '').replace(/\D/g, '').slice(0, 4))
@@ -793,13 +895,17 @@ createApp({
                 startMileage: startMileage.value,
                 startTime: startTime.value,
                 vehicleNo: vehicleNumber.value,
+                daily: normalizeDaily(daily.value),
                 logs: logs.value,
                 totalDistance: calculateTotalDistance.value
             });
             updateHistoryStorage();
             localStorage.removeItem('nippoData_pro_v3');
-            
-            // リセット
+
+            // リセット。夏季手当だけは翌日も同じ額が続くので持ち越す
+            const keepKaki = daily.value.kaki;
+            daily.value = emptyDaily();
+            daily.value.kaki = keepKaki;
             screen.value = 'start';
             startMileage.value = 0;
             logs.value = [];
@@ -919,6 +1025,107 @@ createApp({
             }
         };
 
+        // --- 日報 PDF（format-spec §4.7） ---
+        // 様式は 自動記帳キット/fmt.py build_nippo と同じ。組み立ては nippo-pdf.js
+        const buildNippoData = () => {
+            const hist = viewingHistoryMode.value;
+            const src = hist ? (historyData.value || {}) : null;
+            const targetLogs = hist ? (src.logs || []) : logs.value;
+            const startKm = hist ? src.startMileage : startMileage.value;
+            const arrivals = targetLogs.filter((l) => l.type === 'arrival' && l.mileage);
+            let endKm = arrivals.length ? Number(arrivals[arrivals.length - 1].mileage) : null;
+            // 到着メーターが1件も無い日の代替。01_nippo.py の C5 と同じ決め方
+            if (endKm === null && hist && Number.isFinite(Number(src.totalDistance))) {
+                endKm = Number(startKm) + Number(src.totalDistance);
+            }
+            let toll = 0, park = 0;
+            targetLogs.forEach((l) => {
+                toll += Number(l.tollFee) || 0;
+                park += Number(l.parkingFee) || 0;
+            });
+            return {
+                client: '永田商店',
+                dateStr: hist ? src.dateStr : formatDateStr(new Date()),
+                driverName: driverName.value,
+                vehicleNo: (hist ? (src.vehicleNo || vehicleNumber.value) : vehicleNumber.value) || '',
+                startMileage: startKm,
+                endMileage: endKm,
+                startTime: hist ? src.startTime : startTime.value,
+                endTime: targetLogs.length ? targetLogs[targetLogs.length - 1].time : '',
+                cases: createGroups(targetLogs).map((g) => {
+                    const a = g.arrival || {}, d = g.departure || {};
+                    return {
+                        address: a.address || '', destination: d.destination || '',
+                        arrTime: a.time || '', depTime: d.time || '',
+                        payment: d.payment || '', mileage: a.mileage || '',
+                        remarks: d.remarks || ''
+                    };
+                }),
+                daily: activeDaily.value,
+                toll: toll || null,
+                park: park || null
+            };
+        };
+
+        // 直前に組んだ PDF。同じ内容なら作り直さずに共有する。
+        // iOS は share() をユーザー操作の直後に呼ぶ必要があり、生成に時間がかかると
+        // 権限切れで弾かれる。2回目のタップはここから即座に共有できる
+        let pdfCache = null;
+        const sharingPdf = ref(false);
+
+        const shareNippoPdf = async () => {
+            if (sharingPdf.value) return;
+            const data = buildNippoData();
+
+            if (data.cases.length > NippoForm.MAX_CASES &&
+                !confirm(`案件が ${data.cases.length} 件あります。\n日報は ${NippoForm.MAX_CASES} 件までなので、`
+                         + `${NippoForm.MAX_CASES + 1} 件目以降は載りません。\n\nこのまま作りますか？`)) return;
+            if (!dailyFilled.value &&
+                !confirm('当日実績（①〜⑤）が未入力です。\n回収料金と作業料金が 0 のままになります。\n\nこのまま作りますか？')) return;
+
+            const key = JSON.stringify(data);
+            if (pdfCache && pdfCache.key === key) {
+                await sharePdfFile(pdfCache.blob, pdfCache.name);
+                return;
+            }
+
+            sharingPdf.value = true;
+            loading.value = true;
+            loadingText.value = '日報PDFを作成中...';
+            let out;
+            try {
+                out = await NippoForm.buildPdf(data);
+                pdfCache = { key, blob: out.blob, name: out.name };
+            } catch (e) {
+                console.error(e);
+                alert('日報PDFを作れませんでした。\n' + ((e && e.message) || ''));
+                return;
+            } finally {
+                loading.value = false;
+                sharingPdf.value = false;
+            }
+            await sharePdfFile(out.blob, out.name);
+        };
+
+        const sharePdfFile = async (blob, name) => {
+            const file = new File([blob], name, { type: 'application/pdf' });
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({ files: [file], title: name });
+                    return;
+                } catch (e) {
+                    if (e && e.name === 'AbortError') return;       // ユーザーが閉じただけ
+                    if (e && e.name === 'NotAllowedError') {
+                        alert('PDFはできています。\nもう一度「日報PDFをLINEで送る」を押してください。');
+                        return;
+                    }
+                    console.error(e);
+                }
+            }
+            downloadBlob(blob, name);
+            alert('この端末では共有シートを開けないため、PDFを保存しました。\nファイルアプリからLINEで送ってください。');
+        };
+
         const copyToClipboard = () => {
             const targetLogs = viewingHistoryMode.value ? historyData.value.logs : logs.value;
             const targetStartKm = viewingHistoryMode.value ? historyData.value.startMileage : startMileage.value;
@@ -977,6 +1184,7 @@ createApp({
             // 保存時の書き戻し先。編集で日付や時刻が変わっても見失わない
             editingIndex.value = historyList.value.indexOf(item);
             historyData.value = JSON.parse(JSON.stringify(item));
+            fillDaily(historyData.value);
             screen.value = 'summary';
         };
 
@@ -989,6 +1197,7 @@ createApp({
                 vehicleNo: vehicleNumber.value || '',
                 startMileage: 0,
                 startTime: '',
+                daily: emptyDaily(),
                 logs: [],
                 totalDistance: 0
             };
@@ -1081,6 +1290,10 @@ createApp({
             groupedLogs, calculateTotalDistance, getLastMileage, copyToClipboard, getStatusText,
             todaySummary,
             buildReportText, shareReport,
+
+            // 当日実績と日報PDF
+            DAILY_FIELDS, activeDaily, persistDaily, dailyFilled, nippoFare, tatekaeTotal,
+            driverName, saveDriverName, shareNippoPdf, sharingPdf,
 
             // Edit Mode
             isEditing, editBuffer, enterEditMode, saveEditMode, cancelEditMode, removeGroupFromBuffer,
