@@ -28,8 +28,12 @@ createApp({
             { key: 'shoku',    label: '②配達数',   unit: '食' },
             { key: 'tsuika',   label: '③追加配達', unit: '件' },
             { key: 'taiki',    label: '④作業・待機', unit: '分' },
-            { key: 'kaki',     label: '⑤夏季手当', unit: '円' }
+            // sticky = 前回値を引き継ぐ欄。日ごとに入れるものではないので、
+            // 「当日実績が未入力か」の判定からは外す（これを数えると、
+            // 起動時に必ず 500 が入る夏季手当のせいで警告が一度も出なくなる）
+            { key: 'kaki',     label: '⑤夏季手当', unit: '円', sticky: true }
         ];
+        const DAILY_INPUT_KEYS = DAILY_FIELDS.filter((f) => !f.sticky).map((f) => f.key);
         const emptyDaily = () => {
             const d = {};
             DAILY_FIELDS.forEach((f) => { d[f.key] = ''; });
@@ -405,7 +409,11 @@ createApp({
             return Object.keys(out).length ? out : undefined;
         };
 
-        const dailyFilled = computed(() => !!normalizeDaily(activeDaily.value));
+        // 毎日入れる欄が1つでも埋まっているか。夏季手当は前回値が必ず入っているので数えない
+        const dailyFilled = computed(() => {
+            const d = activeDaily.value;
+            return DAILY_INPUT_KEYS.some((k) => d[k] !== '' && d[k] !== null && d[k] !== undefined);
+        });
 
         const persistDaily = () => {
             const kaki = activeDaily.value.kaki;

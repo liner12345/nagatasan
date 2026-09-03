@@ -69,6 +69,11 @@ All notable changes to this project will be documented in this file.
   last delivery was. The screen used to hold two buttons and nothing else.
 
 ### Fixed
+- The "当日実績が未入力です" warning before building a PDF never fired, and the badge on the
+  card always read 入力済. `daily.kaki` is seeded with the last-used value (or 500) at startup,
+  so "is any field filled?" was always true. Completeness is now judged on the five fields that
+  are entered day by day; the summer allowance carries over and is not counted.
+  **Found by a Codex review of this branch.**
 - The header logo sat too high. `.safe-top` set `padding-top: env(safe-area-inset-top)`, which
   **overrode the header's `p-4` top padding** — so on anything that reports no safe area (a
   phone without a notch, Safari's tabbed view) the top padding collapsed to 0 while the bottom
