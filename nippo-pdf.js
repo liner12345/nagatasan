@@ -7,6 +7,8 @@
  * 文字は画像になる（PDF 内で選択・検索はできない）。日本語フォントを埋め込まずに
  * 済ませるための割り切りで、これによりライブラリも追加フォントも要らない。
  *
+ * 金額の手直し（fareOverride）も同じ規則で扱う。format-spec §3.1。
+ *
  * 運賃計算 fareParts() は fmt.fare_parts() の移植。**運賃の実装はこれで3か所目**
  * （日報の数式 / fare_parts / ここ）。片方だけ直すと金額が食い違う。
  * 変えるときは state-machines.md SM-6 の組を全部変え、
@@ -43,6 +45,7 @@
     const CELL_PAD = 2;           // Excel の既定の左右余白（pt）
 
     const YELLOW = '#FFF3C4';
+    const ORANGE = '#FFE0B2';     // 手直しした金額（fmt.ORG と同じ）
     const HEAD_FILL = '#E8EEF4';
     const THIN = '#B0B0B0';
     const MEDIUM = '#404040';
@@ -54,6 +57,15 @@
     const KIHON = 5000;           // 基本運賃。build_nippo が C29 に入れる既定値
     const OWNER = 'オーケーサービス';   // build_nippo の H2
     const MAX_CASES = 8;          // 明細は 9〜16 行の8件まで（01_nippo.py と同じ）
+
+    // 金額の手直し（format-spec §1 の history[].fareOverride）。
+    // キーは fmt.FARE_OVERRIDE_CELLS と同じ10種で、順序も揃える
+    const OVERRIDE_KEYS = ['e21', 'e22', 'e23', 'e24', 'kihon',
+                           'kyori', 'kaisyu', 'sagyo', 'waribiki', 'total'];
+
+    const NOTE = '■ 黄色のセルが記入欄です。白いセルは自動計算されます。';
+    const NOTE_OVERRIDE = '■ 黄色のセルが記入欄です。オレンジのセルはアプリで手入力した金額です。'
+                        + '白いセルは自動計算されます。';
 
     // ───────── 運賃（fmt.fare_parts の移植） ─────────
 
@@ -77,8 +89,15 @@
         return f % 2 === 0 ? f : f + 1;
     }
 
-    function fareParts(km, kaisyuKm, hako, shoku, tsuika, taiki, kaki, kihon) {
-        const kyori = num(km) <= 20 ? 0 : 200 * (num(km) - 20);
+    /** override は金額の手直し。キーがあればその行を差し替え、下流はその値から出す */
+    function fareParts(km, kaisyuKm, hako, shoku, tsuika, taiki, kaki, kihon, override) {
+        const ov = override || {};
+        const pick = (key, auto) => {
+            const v = ov[key];
+            return (typeof v === 'number' && isFinite(v)) ? v : auto;
+        };
+        const base = pick('kihon', num(kihon));
+        const kyori = pick('kyori', num(km) <= 20 ? 0 : 200 * (num(km) - 20));
         let kaisyu;
         if (isBlank(kaisyuKm)) {
             kaisyu = 0;
@@ -86,16 +105,18 @@
             kaisyu = (kaisyuKm <= 10 ? 2000 : 2000 + 200 * (kaisyuKm - 10)) +
                      (num(hako) >= 1 ? hako * 100 : 0);
         }
-        const e21 = num(shoku) < 100 ? 0 : 1000 + 500 * Math.trunc((shoku - 100) / 50);
-        const e22 = isBlank(tsuika) ? 0 : tsuika * 500;
-        const e23 = num(taiki) < 20 ? 0 : 500 + Math.trunc((taiki - 20) / 20) * 500;
-        const e24 = num(kaki);
-        const sagyo = e21 + e22 + e23 + e24;
-        const subtotal = num(kihon) + kyori + kaisyu + sagyo;
+        kaisyu = pick('kaisyu', kaisyu);
+        const e21 = pick('e21', num(shoku) < 100 ? 0 : 1000 + 500 * Math.trunc((shoku - 100) / 50));
+        const e22 = pick('e22', isBlank(tsuika) ? 0 : tsuika * 500);
+        const e23 = pick('e23', num(taiki) < 20 ? 0 : 500 + Math.trunc((taiki - 20) / 20) * 500);
+        const e24 = pick('e24', num(kaki));
+        const sagyo = pick('sagyo', e21 + e22 + e23 + e24);
+        const subtotal = base + kyori + kaisyu + sagyo;
+        const waribiki = pick('waribiki', subtotal * -0.1);
         return {
-            kyori: kyori, kaisyu: kaisyu,
+            kihon: base, kyori: kyori, kaisyu: kaisyu,
             e21: e21, e22: e22, e23: e23, e24: e24, sagyo: sagyo,
-            waribiki: subtotal * -0.1, total: subtotal + subtotal * -0.1
+            waribiki: waribiki, total: pick('total', subtotal + waribiki)
         };
     }
 
@@ -299,15 +320,20 @@
         // 18〜26行 当日実績
         text(18, 1, '【当日実績】', { size: 10, bold: true, overflow: true });
         text(18, 5, '金額(自動)', { size: 8, color: GRAY, align: 'c', overflow: true });
+        const isOv = (key) => key !== null && d.fareOverride[key] !== null;
+        // 数式は 0 のとき "" を返すので自動計算の 0 は空欄にする。
+        // ただし手直しした欄はセルに 0 が入る＝キットのシートには "0" が出るので、
+        // ここでも 0 を書く（そうしないとアプリの PDF とキットの PDF が食い違う）
+        const amount = (val, key) => (val === 0 && !isOv(key) ? null : val);
         const jisseki = [
-            [19, '①回収距離', '㎞', v.daily.kaisyuKm, null],
-            [20, '①回収箱数', '箱', v.daily.hako, null],
-            [21, '②配達数', '食', v.daily.shoku, v.fare.e21],
-            [22, '③追加配達', '件', v.daily.tsuika, v.fare.e22],
-            [23, '④作業・待機', '分', v.daily.taiki, v.fare.e23],
-            [24, '⑤夏季手当', '円', v.daily.kaki, v.fare.e24],
-            [25, '高速料(立替)', '円', v.toll, null],
-            [26, '駐車料(立替)', '円', v.park, null]
+            [19, '①回収距離', '㎞', v.daily.kaisyuKm, null, null],
+            [20, '①回収箱数', '箱', v.daily.hako, null, null],
+            [21, '②配達数', '食', v.daily.shoku, v.fare.e21, 'e21'],
+            [22, '③追加配達', '件', v.daily.tsuika, v.fare.e22, 'e22'],
+            [23, '④作業・待機', '分', v.daily.taiki, v.fare.e23, 'e23'],
+            [24, '⑤夏季手当', '円', v.daily.kaki, v.fare.e24, 'e24'],
+            [25, '高速料(立替)', '円', v.toll, null, null],
+            [26, '駐車料(立替)', '円', v.park, null, null]
         ];
         jisseki.forEach((row) => {
             const r = row[0];
@@ -316,26 +342,28 @@
             if (row[3] !== null) text(r, 3, money(row[3]), { size: 10, align: 'r' });
             text(r, 4, row[2], { size: 9, color: GRAY });
             if (row[4] !== null) {
+                if (isOv(row[5])) fill(r, 5, ORANGE);
                 box(r, 5, THIN);
-                if (row[4]) text(r, 5, money(row[4]), { size: 10, align: 'r' });
+                if (row[4] || isOv(row[5])) text(r, 5, money(row[4]), { size: 10, align: 'r' });
             }
         });
 
         // 28〜35行 運賃計算
         text(28, 1, '【運賃計算(自動)】', { size: 10, bold: true, overflow: true });
         const calc = [
-            [29, '基本運賃', v.kihon],
-            [30, '距離料金', v.fare.kyori || null],
-            [31, '回収料金', v.fare.kaisyu || null],
-            [32, '作業料金(②〜⑤)', v.fare.sagyo || null],
-            [33, '▲割引(10%)', v.fare.waribiki],
-            [34, '合計', v.total],
-            [35, '立替金合計', v.tatekae || null]
+            [29, '基本運賃', v.kihon, 'kihon'],
+            [30, '距離料金', amount(v.fare.kyori, 'kyori'), 'kyori'],
+            [31, '回収料金', amount(v.fare.kaisyu, 'kaisyu'), 'kaisyu'],
+            [32, '作業料金(②〜⑤)', amount(v.fare.sagyo, 'sagyo'), 'sagyo'],
+            [33, '▲割引(10%)', v.fare.waribiki, 'waribiki'],
+            [34, '合計', v.total, 'total'],
+            [35, '立替金合計', v.tatekae || null, null]
         ];
         calc.forEach((row) => {
             const r = row[0], big = r === 34;
             text(r, 1, row[1], { size: big ? 12 : 10, bold: big, overflow: true });
             if (r === 29) fill(r, 3, YELLOW);
+            if (isOv(row[3])) fill(r, 3, ORANGE);
             if (big) {
                 line(r, 3, 'top', MEDIUM, 1.2);
                 line(r, 3, 'bottom', MEDIUM, 1.2);
@@ -350,7 +378,7 @@
             text(r, 4, '円', { size: 9, color: GRAY });
         });
 
-        text(37, 1, '■ 黄色のセルが記入欄です。白いセルは自動計算されます。',
+        text(37, 1, OVERRIDE_KEYS.some(isOv) ? NOTE_OVERRIDE : NOTE,
              { size: 8.5, color: GRAY, overflow: true });
 
         return cv;
@@ -364,6 +392,10 @@
         ['kaisyuKm', 'hako', 'shoku', 'tsuika', 'taiki', 'kaki'].forEach((k) => {
             daily[k] = toNum(src[k]);
         });
+        // 手直しした金額。未入力は null で、0（＝その行を 0 円にする）と区別する
+        const ovSrc = d.fareOverride || {};
+        const fareOverride = {};
+        OVERRIDE_KEYS.forEach((k) => { fareOverride[k] = toNum(ovSrc[k]); });
         return {
             client: d.client || '永田商店',
             dateStr: d.dateStr || '',
@@ -375,6 +407,7 @@
             endTime: d.endTime || '',
             cases: (d.cases || []).slice(0, MAX_CASES),
             daily: daily,
+            fareOverride: fareOverride,
             toll: toNum(d.toll),
             park: toNum(d.park)
         };
@@ -384,13 +417,17 @@
     function values(d) {
         const km = (d.startMileage !== null && d.endMileage !== null)
             ? d.endMileage - d.startMileage : null;
+        const ov = {};
+        OVERRIDE_KEYS.forEach((k) => {
+            if (d.fareOverride[k] !== null) ov[k] = d.fareOverride[k];
+        });
         const fare = fareParts(km, d.daily.kaisyuKm, d.daily.hako, d.daily.shoku,
-                               d.daily.tsuika, d.daily.taiki, d.daily.kaki, KIHON);
+                               d.daily.tsuika, d.daily.taiki, d.daily.kaki, KIHON, ov);
         const tatekae = num(d.toll) + num(d.park);
         return {
             startMileage: d.startMileage, endMileage: d.endMileage, km: km,
             daily: d.daily, toll: d.toll, park: d.park,
-            kihon: KIHON, fare: fare,
+            kihon: fare.kihon, fare: fare,
             total: roundHalfEven(fare.total),
             tatekae: tatekae || null
         };
@@ -496,6 +533,7 @@
         render: render,
         buildPdf: buildPdf,
         KIHON: KIHON,
-        MAX_CASES: MAX_CASES
+        MAX_CASES: MAX_CASES,
+        OVERRIDE_KEYS: OVERRIDE_KEYS
     };
 })(typeof window !== 'undefined' ? window : globalThis);

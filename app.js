@@ -41,6 +41,36 @@ createApp({
         };
         const daily = ref(emptyDaily());
 
+        // 金額の手直し（日報の E21〜E24 / C29〜C34 / format-spec §1 §3.1）。
+        // 上書きの単位はセル1つで、空欄なら自動計算のまま。
+        // 入力欄は正の数で受け、▲割引だけ符号を反転して持つ
+        // （テンキーに「−」が無い端末があるため）。
+        const FARE_FIELDS = [
+            { key: 'e21', label: '②配達数の金額', section: 'jisseki' },
+            { key: 'e22', label: '③追加配達の金額', section: 'jisseki' },
+            { key: 'e23', label: '④作業・待機の金額', section: 'jisseki' },
+            { key: 'e24', label: '⑤夏季手当の金額', section: 'jisseki' },
+            { key: 'kihon', label: '基本運賃', section: 'unchin' },
+            { key: 'kyori', label: '距離料金', section: 'unchin' },
+            { key: 'kaisyu', label: '回収料金', section: 'unchin' },
+            { key: 'sagyo', label: '作業料金(②〜⑤)', section: 'unchin' },
+            { key: 'waribiki', label: '▲割引(10%)', section: 'unchin',
+              negative: true, hint: '正の数で' },
+            { key: 'total', label: '合計', section: 'unchin' }
+        ];
+        const FARE_SECTIONS = [
+            { title: '当日実績の金額', fields: FARE_FIELDS.filter((f) => f.section === 'jisseki') },
+            { title: '運賃計算', fields: FARE_FIELDS.filter((f) => f.section === 'unchin') }
+        ];
+        const emptyFareOverride = () => {
+            const d = {};
+            FARE_FIELDS.forEach((f) => { d[f.key] = ''; });
+            return d;
+        };
+        const fareOverride = ref(emptyFareOverride());
+        // ボタンを押したときだけ入力欄を出す。毎回は出さない
+        const showFareEdit = ref(false);
+
         // History & Settings
         const historyList = ref([]);
         const viewingHistoryMode = ref(false);
@@ -104,6 +134,9 @@ createApp({
                     if (parsed.startTime) startTime.value = parsed.startTime;
                     if (parsed.undoStack) undoStack.value = parsed.undoStack;
                     if (parsed.daily) daily.value = Object.assign(emptyDaily(), parsed.daily);
+                    if (parsed.fareOverride) {
+                        fareOverride.value = Object.assign(emptyFareOverride(), parsed.fareOverride);
+                    }
                 } catch(e) {
                     console.error('Data corrupted, reset');
                     // 【修正 #2】破損時にユーザーへ通知
@@ -288,6 +321,7 @@ createApp({
                 // 入力欄の当日実績は文字列。保存する側だけ数値にし、空欄のキーは落とす。
                 // 画面が持つ historyData.daily は入力用に全キーを残しておく
                 saved.daily = normalizeDaily(historyData.value.daily);
+                saved.fareOverride = normalizeFareOverride(historyData.value.fareOverride);
                 if (isNewPastEntry.value) {
                     historyList.value.push(saved);
                 } else if (editingIndex.value !== -1) {
@@ -372,7 +406,8 @@ createApp({
                 lastAction: lastAction.value,
                 startTime: startTime.value,
                 undoStack: undoStack.value,
-                daily: daily.value
+                daily: daily.value,
+                fareOverride: fareOverride.value
             };
             localStorage.setItem('nippoData_pro_v3', JSON.stringify(data));
         };
@@ -428,15 +463,78 @@ createApp({
             }
         };
 
-        // 確認画面に出す当日の運賃。日報の C34 と同じ値になる
-        const nippoFare = computed(() => {
+        // --- 金額の手直し（日報 E21〜E24 / C29〜C34 / format-spec §3.1） ---
+        // daily と同じ作りにしてある。当日は fareOverride、履歴を開いているときは
+        // historyData.fareOverride を直接編集する。
+
+        const fillFareOverride = (rec) => {
+            const src = rec.fareOverride || {};
+            const out = emptyFareOverride();
+            FARE_FIELDS.forEach((f) => {
+                const v = src[f.key];
+                if (v === undefined || v === null || v === '') return;
+                // 保存してある ▲割引は負の数。入力欄へは正の数で戻す
+                out[f.key] = f.negative ? Math.abs(Number(v)) : v;
+            });
+            rec.fareOverride = out;
+        };
+
+        const activeFareOverride = computed(() => {
+            if (!viewingHistoryMode.value || !historyData.value) return fareOverride.value;
+            return historyData.value.fareOverride || fareOverride.value;
+        });
+
+        const normalizeFareOverride = (src) => {
+            const out = {};
+            FARE_FIELDS.forEach((f) => {
+                const raw = src ? src[f.key] : '';
+                if (raw === '' || raw === null || raw === undefined) return;
+                const v = Number(raw);
+                if (Number.isFinite(v)) out[f.key] = f.negative ? -Math.abs(v) : v;
+            });
+            return Object.keys(out).length ? out : undefined;
+        };
+
+        const fareOverrideCount = computed(() => {
+            const d = activeFareOverride.value;
+            return FARE_FIELDS.filter((f) => d[f.key] !== '' && d[f.key] !== null &&
+                                             d[f.key] !== undefined).length;
+        });
+
+        const persistFareOverride = () => {
+            if (!viewingHistoryMode.value) { saveData(); return; }
+            // 履歴を開いているときは、その場で書き戻す（編集モードを通さない）
+            if (editingIndex.value !== -1 && historyList.value[editingIndex.value]) {
+                historyList.value[editingIndex.value].fareOverride =
+                    normalizeFareOverride(activeFareOverride.value);
+                updateHistoryStorage();
+            }
+        };
+
+        const clearFareOverride = () => {
+            const t = activeFareOverride.value;
+            FARE_FIELDS.forEach((f) => { t[f.key] = ''; });
+            persistFareOverride();
+        };
+
+        // 確認画面と日報 PDF に出す金額の内訳。手直しした行はその値になる
+        const fareView = computed(() => {
             const km = calculateTotalDistance.value;
             const d = activeDaily.value;
             const n = (x) => (x === '' || x === null || x === undefined ? null : Number(x));
-            const parts = NippoForm.fareParts(km, n(d.kaisyuKm), n(d.hako), n(d.shoku),
-                                              n(d.tsuika), n(d.taiki), n(d.kaki), NippoForm.KIHON);
-            return NippoForm.roundHalfEven(parts.total);
+            return NippoForm.fareParts(km, n(d.kaisyuKm), n(d.hako), n(d.shoku),
+                                       n(d.tsuika), n(d.taiki), n(d.kaki), NippoForm.KIHON,
+                                       normalizeFareOverride(activeFareOverride.value) || {});
         });
+
+        // 空欄の欄に薄く出す自動計算値。他の欄の手直しも織り込んだ値になる
+        const fareAutoText = (f) => {
+            const v = fareView.value[f.key];
+            return Math.round(f.negative ? Math.abs(v) : v).toLocaleString('ja-JP');
+        };
+
+        // 確認画面に出す当日の運賃。日報の C34 と同じ値になる
+        const nippoFare = computed(() => NippoForm.roundHalfEven(fareView.value.total));
 
         const tatekaeTotal = computed(() => {
             let sum = 0;
@@ -897,6 +995,7 @@ createApp({
             isNewPastEntry.value = false;
             editingIndex.value = -1;
             showSettings.value = false;
+            showFareEdit.value = false;
             historyData.value = null;
             if (screen.value !== 'start') screen.value = 'start';
         };
@@ -913,6 +1012,7 @@ createApp({
                 startTime: startTime.value,
                 vehicleNo: vehicleNumber.value,
                 daily: normalizeDaily(daily.value),
+                fareOverride: normalizeFareOverride(fareOverride.value),
                 logs: logs.value,
                 totalDistance: calculateTotalDistance.value
             });
@@ -923,6 +1023,9 @@ createApp({
             const keepKaki = daily.value.kaki;
             daily.value = emptyDaily();
             daily.value.kaki = keepKaki;
+            // 手直しはその日限り。翌日へは持ち越さない
+            fareOverride.value = emptyFareOverride();
+            showFareEdit.value = false;
             screen.value = 'start';
             startMileage.value = 0;
             logs.value = [];
@@ -1074,6 +1177,7 @@ createApp({
                     };
                 }),
                 daily: activeDaily.value,
+                fareOverride: normalizeFareOverride(activeFareOverride.value) || {},
                 toll: toll || null,
                 park: park || null
             };
@@ -1092,7 +1196,7 @@ createApp({
             if (data.cases.length > NippoForm.MAX_CASES &&
                 !confirm(`案件が ${data.cases.length} 件あります。\n日報は ${NippoForm.MAX_CASES} 件までなので、`
                          + `${NippoForm.MAX_CASES + 1} 件目以降は載りません。\n\nこのまま作りますか？`)) return;
-            if (!dailyFilled.value &&
+            if (!dailyFilled.value && !fareOverrideCount.value &&
                 !confirm('当日実績（①〜⑤）が未入力です。\n回収料金と作業料金が 0 のままになります。\n\nこのまま作りますか？')) return;
 
             const key = JSON.stringify(data);
@@ -1197,6 +1301,7 @@ createApp({
             editingIndex.value = historyList.value.indexOf(item);
             historyData.value = JSON.parse(JSON.stringify(item));
             fillDaily(historyData.value);
+            fillFareOverride(historyData.value);
             screen.value = 'summary';
         };
 
@@ -1210,6 +1315,7 @@ createApp({
                 startMileage: 0,
                 startTime: '',
                 daily: emptyDaily(),
+                fareOverride: emptyFareOverride(),
                 logs: [],
                 totalDistance: 0
             };
@@ -1307,6 +1413,10 @@ createApp({
             // 当日実績と日報PDF
             DAILY_FIELDS, activeDaily, persistDaily, dailyFilled, nippoFare, tatekaeTotal,
             driverName, saveDriverName, shareNippoPdf, sharingPdf,
+
+            // 金額の手直し
+            FARE_SECTIONS, activeFareOverride, persistFareOverride, clearFareOverride,
+            fareOverrideCount, fareAutoText, showFareEdit,
 
             // Edit Mode
             isEditing, editBuffer, enterEditMode, saveEditMode, cancelEditMode, removeGroupFromBuffer,

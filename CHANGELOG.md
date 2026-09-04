@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- A "金額を手直し" panel on the report screen. The fare has always been computed from the
+  day's numbers, but the amount actually billed sometimes differs — until now there was no
+  way to say so from the phone. The panel is folded away behind a button (it is not shown
+  every day) and exposes the ten money cells of the nippo: `E21`–`E24` (the amounts for
+  ②–⑤) and `C29`–`C34` (basic fare, distance, collection, handling, ▲discount, total).
+  - **The unit of override is one cell.** It means exactly what it means in the sheet: that
+    cell now holds a typed number instead of a formula. Anything downstream (handling fee,
+    discount, total) is recomputed from the overridden value, so the document stays
+    internally consistent.
+  - Empty means "leave it automatic"; the computed value shows as the placeholder, and it
+    accounts for the other overrides you have already typed.
+  - The ▲discount field takes a positive number and is stored negated — a numeric keypad
+    has no minus sign on some phones.
+  - Stored as `history[].fareOverride`, so it rides along in the backup JSON and reaches
+    `01_nippo.py`, the nippo sheet and the invoice (hub format-spec §1, §3.1).
+  - Overrides do not carry over to the next day; 業務完了 clears them.
+- `fareParts()` takes an `override` argument, matching `fmt.fare_parts()` in the hub. The
+  hub's `tests/test_fare_parity.py` checks the two against each other with overrides too.
+- Overridden cells are painted orange in the generated PDF and the footer note gains a
+  sentence explaining them, so a reader can tell a typed amount from a computed one. The
+  same is true of the sheet the kit builds, so the two documents still match.
+
+### Fixed
+- The generated PDF drew an overridden amount of `0` as an empty cell. The kit's sheet holds
+  a literal `0` there and shows `0`, so the app's PDF and the kit's PDF disagreed. A computed
+  `0` is still blank (that is what the formula does); only a typed `0` is printed.
+
+### Added
 - The day's results (`①回収距離` `①回収箱数` `②配達数` `③追加配達` `④作業・待機` `⑤夏季手当`)
   on the report screen. These six numbers decide the collection and handling fees, and until
   now they existed nowhere in the app: they had to be typed into the nippo's yellow cells on
