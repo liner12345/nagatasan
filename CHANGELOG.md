@@ -5,19 +5,19 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- The 永田 brand mark (`logo.png`), in the header next to the title and in the "業務開始"
-  card heading. The source artwork is a 1200x354 opaque PNG whose mark occupies only the
-  left 356px on a solid white field; pasting it as-is would have put a white rectangle on
-  the blue header. The mark is cropped and the white is turned back into transparency by
-  recovering per-pixel coverage from the source, which lands at 3.4KB.
-  - It is applied as a **CSS mask**, so a single image takes whatever colour CSS gives it:
-    `currentColor` on the blue header (white, always legible) and `--logo-brand` on light
-    surfaces. `--logo-brand` shifts from `#7c7653` to `#a9a176` under
-    `prefers-color-scheme: dark`, because the olive sinks into a dark background.
-  - Both placements are inline with existing headings, so no vertical space is taken from
-    the start screen — the keypad there is already tight.
-  - Where CSS masks are unavailable the mark falls back to a plain background image in the
-    brand colour, so it can never render as a solid square.
+- The 永田 brand mark (`logo.png`) in the header, next to the title. The source artwork is a
+  1200x354 opaque PNG whose mark occupies only the left 356px on a solid white field;
+  pasting it as-is would have put a white rectangle on the blue header. The mark is cropped
+  and the white is turned back into transparency by recovering per-pixel coverage from the
+  source, which lands at 3.4KB.
+  - It is applied as a **CSS mask** and painted with `currentColor`, so it takes the colour
+    of whatever it sits in. On the blue header that is white, in light and dark alike, and
+    it cannot clash with a background it is later moved onto.
+  - **One placement only.** A second copy in the "業務開始" heading put the same mark twice
+    in one viewport, which read as a mistake.
+  - It sits inline in the existing heading, so it takes no vertical space.
+  - Where CSS masks are unavailable the mark is hidden rather than falling back to the flat
+    artwork — an olive mark on the blue header is harder to read than no mark at all.
 
 ### Changed
 - The app is now called **永田日報** — the document title, the header, the manifest
