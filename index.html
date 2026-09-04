@@ -26,8 +26,7 @@
     <!-- 縦パディングは入れない。.safe-top の padding-top と足されると中身が中心からずれる -->
     <header class="bg-blue-600 text-white px-4 shadow-md z-30 flex-shrink-0 flex justify-between items-center h-14 safe-top">
         <h1 class="text-lg font-bold flex items-center gap-2">
-            <!-- マークは CSS マスクなので、ここでは文字色（白）をそのまま拾う -->
-            <span class="app-logo" aria-hidden="true"></span> 永田日報
+            <i class="fa-solid fa-truck-fast"></i> 永田日報
         </h1>
         <div class="flex items-center gap-2">
             <button v-if="screen === 'dashboard'" @click="handleHeaderBack" class="text-xs bg-blue-500 hover:bg-blue-400 px-3 py-1.5 rounded-full border border-blue-300 transition-colors flex items-center gap-1 shadow-sm">

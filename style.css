@@ -1,29 +1,3 @@
-/* --- ブランドマーク --- */
-/* logo.png は元画像（白地・1200x354）からマークだけを切り出し、白を透明に戻したもの。
-   単色なので **CSS マスク**として使い、色は CSS 側で決める。
-
-   置いた場所の文字色（currentColor）をそのまま拾うのが要点で、これで背景が明るくても
-   暗くても必ず読める。いまはヘッダー（青地・文字は白）の1か所だけなので、
-   ライトでもダークでも白いマークになる。**同じ画面にマークを2つ出さない。**
-
-   マスクが使えない環境ではマークを出さない。素の画像に落とすと青いヘッダーに
-   オリーブのマークが乗って読みにくくなるので、タイトルだけのほうがまし。 */
-.app-logo {
-    display: none;
-}
-
-@supports ((-webkit-mask-image: url(a)) or (mask-image: url(a))) {
-    .app-logo {
-        display: inline-block;
-        width: 1.5em;
-        height: 1.5em;
-        flex-shrink: 0;
-        background: currentColor;
-        -webkit-mask: url(./logo.png) no-repeat center / contain;
-        mask: url(./logo.png) no-repeat center / contain;
-    }
-}
-
 /* --- iPhone Safari対策のApp Shell構造 --- */
 html {
     height: 100dvh;

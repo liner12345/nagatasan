@@ -13,7 +13,7 @@
  * ファイルを足す・消すときは PRECACHE の一覧を更新する。
  * CACHE の版を上げると、次回オンラインで開いたときに古いキャッシュを丸ごと捨てる。
  */
-const CACHE = 'nagata-nippo-v7';
+const CACHE = 'nagata-nippo-v8';
 
 const PRECACHE = [
   './',
@@ -23,7 +23,6 @@ const PRECACHE = [
   './style.css',
   './tailwind.css',
   './manifest.json',
-  './logo.png',
   './favicon.svg',
   './favicon-16x16.png',
   './favicon-32x32.png',

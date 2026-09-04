@@ -4,21 +4,6 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added
-- The 永田 brand mark (`logo.png`) in the header, next to the title. The source artwork is a
-  1200x354 opaque PNG whose mark occupies only the left 356px on a solid white field;
-  pasting it as-is would have put a white rectangle on the blue header. The mark is cropped
-  and the white is turned back into transparency by recovering per-pixel coverage from the
-  source, which lands at 3.4KB.
-  - It is applied as a **CSS mask** and painted with `currentColor`, so it takes the colour
-    of whatever it sits in. On the blue header that is white, in light and dark alike, and
-    it cannot clash with a background it is later moved onto.
-  - **One placement only.** A second copy in the "業務開始" heading put the same mark twice
-    in one viewport, which read as a mistake.
-  - It sits inline in the existing heading, so it takes no vertical space.
-  - Where CSS masks are unavailable the mark is hidden rather than falling back to the flat
-    artwork — an olive mark on the blue header is harder to read than no mark at all.
-
 ### Changed
 - The app is now called **永田日報** — the document title, the header, the manifest
   `name`/`short_name`, and a new `apple-mobile-web-app-title` so iOS uses it for the home
