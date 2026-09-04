@@ -1,6 +1,6 @@
 {
-  "name": "スマホ日報 - Smart Log Ultimate V3.9",
-  "short_name": "スマホ日報",
+  "name": "永田日報",
+  "short_name": "永田日報",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#e5e7eb",

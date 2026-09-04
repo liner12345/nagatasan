@@ -1,3 +1,38 @@
+/* --- ブランドマーク --- */
+/* logo.png は元画像（白地・1200x354）からマークだけを切り出し、白を透明に戻したもの。
+   単色なので **CSS マスク**として使い、色は CSS 側で決める。置いた場所の文字色
+   （currentColor）をそのまま拾うので、青いヘッダーでは白、白いカードの上では
+   --logo-brand になる。ライト・ダークどちらの背景でも潰れない。
+   マスクに対応しない環境では素の画像として出る（ブランド色のまま）。 */
+:root {
+    --logo-brand: #7c7653;
+}
+@media (prefers-color-scheme: dark) {
+    /* 暗い背景ではオリーブが沈むので明るいほうへ寄せる */
+    :root {
+        --logo-brand: #a9a176;
+    }
+}
+
+.app-logo {
+    display: inline-block;
+    width: 1.5em;
+    height: 1.5em;
+    flex-shrink: 0;
+    background: url(./logo.png) no-repeat center / contain;
+}
+
+@supports ((-webkit-mask-image: url(a)) or (mask-image: url(a))) {
+    .app-logo {
+        background: currentColor;
+        -webkit-mask: url(./logo.png) no-repeat center / contain;
+        mask: url(./logo.png) no-repeat center / contain;
+    }
+    .app-logo--brand {
+        background: var(--logo-brand);
+    }
+}
+
 /* --- iPhone Safari対策のApp Shell構造 --- */
 html {
     height: 100dvh;

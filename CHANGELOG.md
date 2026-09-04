@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- The 永田 brand mark (`logo.png`), in the header next to the title and in the "業務開始"
+  card heading. The source artwork is a 1200x354 opaque PNG whose mark occupies only the
+  left 356px on a solid white field; pasting it as-is would have put a white rectangle on
+  the blue header. The mark is cropped and the white is turned back into transparency by
+  recovering per-pixel coverage from the source, which lands at 3.4KB.
+  - It is applied as a **CSS mask**, so a single image takes whatever colour CSS gives it:
+    `currentColor` on the blue header (white, always legible) and `--logo-brand` on light
+    surfaces. `--logo-brand` shifts from `#7c7653` to `#a9a176` under
+    `prefers-color-scheme: dark`, because the olive sinks into a dark background.
+  - Both placements are inline with existing headings, so no vertical space is taken from
+    the start screen — the keypad there is already tight.
+  - Where CSS masks are unavailable the mark falls back to a plain background image in the
+    brand colour, so it can never render as a solid square.
+
+### Changed
+- The app is now called **永田日報** — the document title, the header, the manifest
+  `name`/`short_name`, and a new `apple-mobile-web-app-title` so iOS uses it for the home
+  screen too. It was "スマホ日報 - Smart Log Ultimate V3.9" / "配送日報 Pro".
+  **An icon already on the home screen keeps its old name until it is removed and re-added.**
+
+### Added
 - A "金額を手直し" panel on the report screen. The fare has always been computed from the
   day's numbers, but the amount actually billed sometimes differs — until now there was no
   way to say so from the phone. The panel is folded away behind a button (it is not shown
