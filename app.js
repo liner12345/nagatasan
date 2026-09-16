@@ -116,11 +116,39 @@ createApp({
         const tempAccuracy = ref(null);
         const savedLocations = ref([]);
 
+        // --- 開始時刻 ---
+        // 開始時刻が「アプリを開いた時刻」で固まっていた。原因は2つある。
+        //   1. 業務開始の取り消し(handleHeaderBack)は screen:'start' のまま saveData() するので、
+        //      古い startTime が保存に残り、次に開いたとき復元されていた
+        //   2. 時刻を入れるのが onMounted の中だけだった。onMounted はページの読み込み1回につき
+        //      1回しか走らないので、再読込されずに再開した場合（ホーム画面のPWA）は固まる
+        // 2 を「再開イベントで直す」だけにすると、イベントが飛ばない端末で古い時刻が記録される。
+        // そこで記録する側を直す = startWork() が押された瞬間に時計を読み直す。
+        // イベントと定期更新は画面の表示を合わせるためだけのもので、正しさはそれに依存しない。
+        //
+        // 業務開始後の startTime は日報に載る実測値なので触らない。
+        // 手で直した時刻も上書きしない（自動で入れた最後の値と食い違えば人が直したと見なす）。
+        const nowHm = () => new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+        const autoStartTime = ref('');
+        const setStartTimeNow = () => {
+            autoStartTime.value = nowHm();
+            startTime.value = autoStartTime.value;
+        };
+        // 自動で入れた値のままか（違えば人が手で直している）
+        const isAutoStartTime = () => startTime.value === autoStartTime.value;
+        const refreshStartTime = () => {
+            if (screen.value !== 'start' || startMileage.value > 0) return;
+            if (!isAutoStartTime()) return;
+            // 時刻欄を触っている最中に値を差し替えない（iOS のピッカーが飛ぶ）
+            const el = document.activeElement;
+            if (el && el.type === 'time') return;
+            setStartTimeNow();
+        };
+
         // --- Initialization ---
         onMounted(() => {
             document.getElementById('app').style.display = ''; 
-            const now = new Date();
-            startTime.value = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+            setStartTimeNow();
 
             // Load Data
             const savedData = localStorage.getItem('nippoData_pro_v3');
@@ -131,7 +159,9 @@ createApp({
                     startMileage.value = parsed.startMileage || 0;
                     logs.value = parsed.logs || [];
                     lastAction.value = parsed.lastAction || 'none';
-                    if (parsed.startTime) startTime.value = parsed.startTime;
+                    // 業務開始後の時刻だけ戻す。start 画面のまま保存された古い時刻を戻すと、
+                    // 次に開いたときも「前回開いた時刻」が居座る
+                    if (parsed.startTime && screen.value !== 'start') startTime.value = parsed.startTime;
                     if (parsed.undoStack) undoStack.value = parsed.undoStack;
                     if (parsed.daily) daily.value = Object.assign(emptyDaily(), parsed.daily);
                     if (parsed.fareOverride) {
@@ -185,6 +215,14 @@ createApp({
                     console.error('Location data corrupted');
                 }
             }
+
+            // 表示を現在時刻に合わせ続ける。非表示の間はタイマーが間引かれる（端末によっては
+            // 止まる）ので、再表示された瞬間にも読み直す。記録される開始時刻は startWork() が
+            // その場で時計を読むので、この2つが動かなくても古くならない
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') refreshStartTime();
+            });
+            setInterval(refreshStartTime, 30000);
         });
 
         // --- Helper: Grouping Logic ---
@@ -681,6 +719,7 @@ createApp({
                     logs.value = [];
                     lastAction.value = 'none';
                     startMileage.value = 0;
+                    setStartTimeNow();   // 取り消したので、次の開始時刻は今
                     saveData();
                 }
             }
@@ -840,6 +879,9 @@ createApp({
                 alert('開始メーターを入力してください。');
                 return;
             }
+            // 押した瞬間の時刻を記録する。画面の更新が届いていなくても（再開直後など）
+            // 古い時刻が日報に載ることはない。手で直してある時刻はそのまま使う
+            if (isAutoStartTime()) setStartTimeNow();
             startMileage.value = km;
             logs.value = [];
             undoStack.value = [];
@@ -1032,7 +1074,7 @@ createApp({
             undoStack.value = [];
             lastAction.value = 'none';
             inputBuffer.value = '';
-            startTime.value = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+            setStartTimeNow();
         };
 
         // 【修正 #4】アイテム参照で削除（インデックス計算のズレを防止）

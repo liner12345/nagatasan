@@ -34,6 +34,19 @@ All notable changes to this project will be documented in this file.
   same is true of the sheet the kit builds, so the two documents still match.
 
 ### Fixed
+- 開始時刻 froze at the time the app had been opened, so a run started hours later was
+  recorded — and billed — with the wrong start time. Two separate causes, both fixed:
+  - `nippoData_pro_v3` is saved with `screen: 'start'` when 業務開始 is cancelled
+    (`handleHeaderBack`), so a stale `startTime` stayed in storage and was restored on the
+    next launch, surviving even a full reload. The saved time is now restored only when the
+    run had actually started; on the start screen it means nothing.
+  - The clock was read once, inside `onMounted`. A home-screen PWA can be resumed without a
+    reload, and `onMounted` never runs a second time, so the field kept showing the time the
+    page was first loaded. **The recorded time no longer depends on any resume event
+    firing**: `startWork()` reads the clock at the moment the button is pressed.
+  Refreshing the field itself (every 30 s, and when the page becomes visible again) is for
+  the display only. A time typed by hand is never overwritten, and the field is left alone
+  while it has focus — the iOS time picker jumps otherwise.
 - The generated PDF drew an overridden amount of `0` as an empty cell. The kit's sheet holds
   a literal `0` there and shows `0`, so the app's PDF and the kit's PDF disagreed. A computed
   `0` is still blank (that is what the formula does); only a typed `0` is printed.
