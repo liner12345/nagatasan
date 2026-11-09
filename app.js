@@ -93,7 +93,6 @@ createApp({
         });
 
         // UI Temps
-        const showCopyToast = ref(false);
         const showTextToast = ref(false);
         const tempAddress = ref('');
         const tempTime = ref('');
@@ -1117,7 +1116,6 @@ createApp({
         // --- LINE へ送る日報 ---
         // これまでは PDF に変換してから送っていた。読む側は本文のまま読めたほうが速く、
         // 転記も引用もできるのでテキストで組み立てる。
-        // (copyToClipboard の KEY::VALUE 形式は機械向けで、人が読む形ではない)
         const circled = (n) => (n >= 1 && n <= 20 ? '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳'[n - 1] : `(${n})`);
         const yen = (v) => Number(v).toLocaleString('ja-JP') + '円';
 
@@ -1296,57 +1294,6 @@ createApp({
             alert('この端末では共有シートを開けないため、PDFを保存しました。\nファイルアプリからLINEで送ってください。');
         };
 
-        const copyToClipboard = () => {
-            const targetLogs = viewingHistoryMode.value ? historyData.value.logs : logs.value;
-            const targetStartKm = viewingHistoryMode.value ? historyData.value.startMileage : startMileage.value;
-            const targetStartTime = viewingHistoryMode.value ? historyData.value.startTime : startTime.value;
-            const targetDate = viewingHistoryMode.value ? historyData.value.dateStr : runDateStr();
-            
-            const exportGroups = createGroups(targetLogs);
-            
-            let targetEndKm = '---';
-            let targetEndTime = '';
-            const lastLog = targetLogs.length > 0 ? targetLogs[targetLogs.length - 1] : null;
-            if(lastLog) targetEndTime = lastLog.time;
-            
-            const arrivalLogs = targetLogs.filter(l => l.type === 'arrival' && l.mileage);
-            if(arrivalLogs.length) targetEndKm = arrivalLogs[arrivalLogs.length - 1].mileage;
-
-            let data = [];
-            data.push('FORMAT::NAGATASAN-EXPORT-1');
-            data.push(`DATE::${targetDate}`);
-            data.push(`START_KM::${targetStartKm}`);
-            data.push(`END_KM::${targetEndKm}`);
-            data.push(`START_TIME::${targetStartTime}`);
-            data.push(`END_TIME::${targetEndTime}`);
-            data.push(`VEHICLE_NO::${vehicleNumber.value}`);
-
-            exportGroups.forEach((group, index) => {
-                if (index >= 8) return; 
-                const num = index + 1;
-                const arr = group.arrival || {};
-                const dep = group.departure || {};
-                data.push(`CASE_${num}_ADDRESS::${arr.address || ''}`);
-                data.push(`CASE_${num}_ARR_TIME::${arr.time || ''}`);
-                data.push(`CASE_${num}_ARR_KM::${arr.mileage || ''}`);
-                data.push(`CASE_${num}_DEST::${dep.destination || ''}`);
-                data.push(`CASE_${num}_DEP_TIME::${dep.time || ''}`);
-                data.push(`CASE_${num}_PAY::${dep.payment || ''}`);
-                data.push(`CASE_${num}_NOTE::${dep.remarks || ''}`);
-            });
-
-            if (!navigator.clipboard || !navigator.clipboard.writeText) {
-                alert('この環境ではコピーできません。');
-                return;
-            }
-            navigator.clipboard.writeText(data.join('\n')).then(() => {
-                showCopyToast.value = true;
-                setTimeout(() => showCopyToast.value = false, 2000);
-            }).catch(() => {
-                alert('コピーできませんでした。');
-            });
-        };
-
         // 【修正 #3】ディープコピーで履歴を閲覧（元データを直接変更しない）
         const viewHistory = (item) => {
             viewingHistoryMode.value = true;
@@ -1437,7 +1384,7 @@ createApp({
 
         return {
             screen, inputBuffer, loading, loadingText, lastAction, startMileage,
-            historyList, viewingHistoryMode, historyData, showCopyToast, showTextToast, showSettings,
+            historyList, viewingHistoryMode, historyData, showTextToast, showSettings,
             vehicleNumber, vehicleNumberHistory, vehicleNumberInput, vehiclePick, pickVehicleNumber,
             moveVehicleCaretToEnd, saveVehicleNumber, selectVehicleNumber, removeVehicleNumberFromHistory, startTime, undoStack, undo, handleHeaderBack,
             
@@ -1460,7 +1407,7 @@ createApp({
             
             // Navigation
             startWork, goToSummary, backToDashboard, saveAndReset, viewHistory, closeSubScreens,
-            groupedLogs, calculateTotalDistance, getLastMileage, copyToClipboard, getStatusText,
+            groupedLogs, calculateTotalDistance, getLastMileage, getStatusText,
             todaySummary,
             buildReportText, shareReport, copyReportText,
 

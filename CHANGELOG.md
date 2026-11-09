@@ -33,6 +33,12 @@ All notable changes to this project will be documented in this file.
   sentence explaining them, so a reader can tell a typed amount from a computed one. The
   same is true of the sheet the kit builds, so the two documents still match.
 
+### Removed
+- The "Excel転記用データをコピー" button on the report screen, and `copyToClipboard()`
+  behind it. It copied the `NAGATASAN-EXPORT-1` KEY::VALUE text, which nothing reads: the
+  kit takes the backup JSON (hub format-spec §7). It sat among the send buttons, one more
+  thing to tap by mistake.
+
 ### Fixed
 - The arrival address often named a place the driver was not at: a different town, and
   sometimes a different ward. The position was right; the address service was wrong.
