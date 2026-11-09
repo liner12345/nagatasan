@@ -4,7 +4,9 @@
  * 取り出し方は2通りに分けている。
  *   vendor/ 配下   … バージョンを固定した外部ライブラリ。中身が変わらないのでキャッシュ優先
  *   それ以外       … アプリ本体。ネットワーク優先にして更新をすぐ届ける
- *                    （圏外ならキャッシュへ落ちるので、オフラインでも起動する）
+ *                    （圏外ならキャッシュへ落ちるので、オフラインでも起動する）。
+ *                    電波の弱い所では応答も失敗も返らないまま止まるので、
+ *                    NETWORK_TIMEOUT で待つのをやめてキャッシュを返す
  *
  * tailwind.css は index.html のクラスから生成する = アプリ側の資産なので、
  * vendor/ ではなくルートに置く。vendor/ に置くとキャッシュ優先になり、
@@ -13,7 +15,8 @@
  * ファイルを足す・消すときは PRECACHE の一覧を更新する。
  * CACHE の版を上げると、次回オンラインで開いたときに古いキャッシュを丸ごと捨てる。
  */
-const CACHE = 'nagata-nippo-v19';
+const CACHE = 'nagata-nippo-v20';
+const NETWORK_TIMEOUT = 3000;   // ms
 
 const PRECACHE = [
   './',
@@ -57,12 +60,11 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// clone() は応答を返す前に呼ぶ。返した後は本文が読まれていて写せない
 const putInCache = (req, res) => {
-  if (res && res.status === 200 && res.type === 'basic') {
-    const copy = res.clone();
-    caches.open(CACHE).then((cache) => cache.put(req, copy));
-  }
-  return res;
+  if (!res || res.status !== 200 || res.type !== 'basic') return Promise.resolve();
+  const copy = res.clone();
+  return caches.open(CACHE).then((cache) => cache.put(req, copy));
 };
 
 self.addEventListener('fetch', (event) => {
@@ -77,17 +79,23 @@ self.addEventListener('fetch', (event) => {
   // 固定バージョンの資産はキャッシュ優先
   if (url.pathname.includes('/vendor/')) {
     event.respondWith(
-      caches.match(req).then((hit) => hit || fetch(req).then((res) => putInCache(req, res)))
+      caches.match(req).then((hit) => hit || fetch(req).then((res) => { putInCache(req, res); return res; }))
     );
     return;
   }
 
-  // アプリ本体はネットワーク優先。圏外ならキャッシュへ落ちる
+  // アプリ本体はネットワーク優先。圏外ならすぐ、応答が遅ければ NETWORK_TIMEOUT でキャッシュへ落ちる。
+  // 遅れて届いた応答もキャッシュへ入れて、次に開いたときに使う
+  const network = fetch(req);
+  event.waitUntil(network.then((res) => putInCache(req, res)).catch(() => {}));
+  const fromCache = () => caches.match(req).then((hit) =>
+    hit || (req.mode === 'navigate' ? caches.match('./index.html') : undefined));
+  // キャッシュにも無ければネットワークを待ち続ける
+  const slow = new Promise((resolve) => setTimeout(resolve, NETWORK_TIMEOUT))
+    .then(fromCache)
+    .then((hit) => hit || network);
   event.respondWith(
-    fetch(req)
-      .then((res) => putInCache(req, res))
-      .catch(() => caches.match(req).then((hit) =>
-        hit || (req.mode === 'navigate' ? caches.match('./index.html') : Promise.reject(new Error('offline')))
-      ))
+    Promise.race([network, slow])
+      .catch(() => fromCache().then((hit) => hit || Promise.reject(new Error('offline'))))
   );
 });

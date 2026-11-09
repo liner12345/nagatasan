@@ -12,6 +12,10 @@ All notable changes to this project will be documented in this file.
 - The buttons at the top of the screen are at least 44px tall: 戻る/トップへ and 閉じる in
   the header, and 編集/保存, 中止 and 戻る on the report screen. They were 20–30px, small
   enough to miss or to hit the neighbour.
+- Opening the app on a weak signal no longer waits on the network forever. The service
+  worker still asks the network first for the app's own files, but gives up after 3 s and
+  serves the cached copy. A response that arrives later still updates the cache, so the
+  next launch gets it. Only `nagata-nippo-*` caches are ever deleted, as before.
 
 ### Added
 - A "金額を手直し" panel on the report screen. The fare has always been computed from the
