@@ -63,6 +63,10 @@ All notable changes to this project will be documented in this file.
 - The header's 戻る deleted the last record on a single tap, with no question asked. It
   now asks first and names the record it is about to remove, for example
   "直前の記録（完了 10:23）を取り消しますか？" (hub state-machines SM-1).
+- Cancelling 業務開始 (トップへ) kept the day's results (①〜④) and the 金額を手直し
+  amounts, so the next run was billed with them: an overridden total of 9,999 was still
+  the total of the run started after the cancel. The cancel and 業務完了 now share one
+  reset, which empties both and keeps only ⑤夏季手当 (hub state-machines SM-1).
 - 開始時刻 froze at the time the app had been opened, so a run started hours later was
   recorded — and billed — with the wrong start time. Two separate causes, both fixed:
   - `nippoData_pro_v3` is saved with `screen: 'start'` when 業務開始 is cancelled

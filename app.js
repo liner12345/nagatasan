@@ -721,6 +721,25 @@ createApp({
             saveData();
         };
 
+        // 業務開始前に戻す。業務完了と業務開始の取り消しの両方がここを通る。
+        // 取り消しだけ別に書いていたため当日実績と手直しが残り、次の運行の請求に乗っていた
+        const resetRun = () => {
+            // 夏季手当だけは翌日も同じ額が続くので持ち越す
+            const keepKaki = daily.value.kaki;
+            daily.value = emptyDaily();
+            daily.value.kaki = keepKaki;
+            // 手直しはその運行限り。次へは持ち越さない
+            fareOverride.value = emptyFareOverride();
+            showFareEdit.value = false;
+            screen.value = 'start';
+            startMileage.value = 0;
+            logs.value = [];
+            undoStack.value = [];
+            lastAction.value = 'none';
+            inputBuffer.value = '';
+            setStartTimeNow();   // 次の開始時刻は今
+        };
+
         const handleHeaderBack = () => {
             if (undoStack.value.length > 0) {
                 // 押し間違えると直前の記録が消える。何が消えるかを出して確かめる
@@ -729,12 +748,7 @@ createApp({
                 if (confirm(`直前の記録${what}を取り消しますか？`)) undo();
             } else {
                 if (confirm('業務開始を取り消してトップ画面に戻りますか？\n（入力内容はリセットされます）')) {
-                    screen.value = 'start';
-                    inputBuffer.value = ''; 
-                    logs.value = [];
-                    lastAction.value = 'none';
-                    startMileage.value = 0;
-                    setStartTimeNow();   // 取り消したので、次の開始時刻は今
+                    resetRun();
                     saveData();
                 }
             }
@@ -1058,21 +1072,7 @@ createApp({
             });
             updateHistoryStorage();
             localStorage.removeItem('nippoData_pro_v3');
-
-            // リセット。夏季手当だけは翌日も同じ額が続くので持ち越す
-            const keepKaki = daily.value.kaki;
-            daily.value = emptyDaily();
-            daily.value.kaki = keepKaki;
-            // 手直しはその日限り。翌日へは持ち越さない
-            fareOverride.value = emptyFareOverride();
-            showFareEdit.value = false;
-            screen.value = 'start';
-            startMileage.value = 0;
-            logs.value = [];
-            undoStack.value = [];
-            lastAction.value = 'none';
-            inputBuffer.value = '';
-            setStartTimeNow();
+            resetRun();
         };
 
         // 【修正 #4】アイテム参照で削除（インデックス計算のズレを防止）
