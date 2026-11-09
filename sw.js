@@ -13,7 +13,7 @@
  * ファイルを足す・消すときは PRECACHE の一覧を更新する。
  * CACHE の版を上げると、次回オンラインで開いたときに古いキャッシュを丸ごと捨てる。
  */
-const CACHE = 'nagata-nippo-v18';
+const CACHE = 'nagata-nippo-v19';
 
 const PRECACHE = [
   './',

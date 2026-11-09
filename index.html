@@ -29,12 +29,12 @@
             <i class="fa-solid fa-truck-fast"></i> 永田日報
         </h1>
         <div class="flex items-center gap-2">
-            <button v-if="screen === 'dashboard'" @click="handleHeaderBack" class="text-xs bg-blue-500 hover:bg-blue-400 px-3 py-1.5 rounded-full border border-blue-300 transition-colors flex items-center gap-1 shadow-sm">
+            <button v-if="screen === 'dashboard'" @click="handleHeaderBack" class="text-sm font-bold bg-blue-500 hover:bg-blue-400 px-4 min-h-[44px] rounded-full border border-blue-300 transition-colors flex items-center gap-1 shadow-sm">
                 <i :class="undoStack.length > 0 ? 'fa-solid fa-rotate-left' : 'fa-solid fa-arrow-left'"></i> 
                 {{ undoStack.length > 0 ? '戻る' : 'トップへ' }}
             </button>
             
-            <button v-if="(viewingHistoryMode || showSettings) && !isEditing" @click="closeSubScreens" class="text-xs bg-blue-700 hover:bg-blue-800 px-3 py-1.5 rounded-full border border-blue-400 transition-colors">
+            <button v-if="(viewingHistoryMode || showSettings) && !isEditing" @click="closeSubScreens" class="text-sm font-bold bg-blue-700 hover:bg-blue-800 px-4 min-h-[44px] rounded-full border border-blue-400 transition-colors">
                 <i class="fa-solid fa-times mr-1"></i>閉じる
             </button>
         </div>
@@ -252,13 +252,13 @@
                 </h2>
                 <div class="flex items-center gap-3">
                     <button @click="isEditing ? saveEditMode() : enterEditMode()" 
-                            class="text-xs font-bold px-3 py-1.5 rounded-full border shadow-sm transition-colors flex items-center gap-1"
+                            class="text-sm font-bold px-4 min-h-[44px] rounded-full border shadow-sm transition-colors flex items-center gap-1"
                             :class="isEditing ? 'bg-green-500 text-white border-green-600' : 'bg-white text-gray-600 border-gray-200'">
                         <i :class="isEditing ? 'fa-solid fa-save' : 'fa-solid fa-pen'"></i>
                         {{ isEditing ? '保存' : '編集' }}
                     </button>
-                    <button v-if="isEditing" @click="cancelEditMode" class="text-xs text-red-500 font-bold underline">中止</button>
-                    <button v-if="!viewingHistoryMode && !isEditing" @click="backToDashboard" class="text-sm text-gray-500 font-bold underline">戻る</button>
+                    <button v-if="isEditing" @click="cancelEditMode" class="text-sm text-red-500 font-bold underline min-h-[44px] px-2">中止</button>
+                    <button v-if="!viewingHistoryMode && !isEditing" @click="backToDashboard" class="text-sm text-gray-500 font-bold underline min-h-[44px] px-2">戻る</button>
                 </div>
             </div>
             

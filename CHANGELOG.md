@@ -9,6 +9,9 @@ All notable changes to this project will be documented in this file.
   `name`/`short_name`, and a new `apple-mobile-web-app-title` so iOS uses it for the home
   screen too. It was "スマホ日報 - Smart Log Ultimate V3.9" / "配送日報 Pro".
   **An icon already on the home screen keeps its old name until it is removed and re-added.**
+- The buttons at the top of the screen are at least 44px tall: 戻る/トップへ and 閉じる in
+  the header, and 編集/保存, 中止 and 戻る on the report screen. They were 20–30px, small
+  enough to miss or to hit the neighbour.
 
 ### Added
 - A "金額を手直し" panel on the report screen. The fare has always been computed from the
