@@ -71,6 +71,10 @@ All notable changes to this project will be documented in this file.
   between 到着 and 完了 (iOS often does this to a PWA in the background), 完了 offered no
   nearby destinations and did not learn the new one, without saying so. The position is
   now kept in `nippoData_pro_v3` as `arrivalPos`. The backup JSON is unchanged.
+- The service worker deleted every cache but its own when it activated. Cache Storage is
+  per origin, and hamanippo lives on the same `liner12345.github.io`, so each update of this
+  app threw away hamanippo's offline copy (`nippou-v*`). It now deletes only its own old
+  versions (`nagata-nippo-*`).
 - 開始時刻 froze at the time the app had been opened, so a run started hours later was
   recorded — and billed — with the wrong start time. Two separate causes, both fixed:
   - `nippoData_pro_v3` is saved with `screen: 'start'` when 業務開始 is cancelled

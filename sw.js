@@ -13,7 +13,7 @@
  * ファイルを足す・消すときは PRECACHE の一覧を更新する。
  * CACHE の版を上げると、次回オンラインで開いたときに古いキャッシュを丸ごと捨てる。
  */
-const CACHE = 'nagata-nippo-v15';
+const CACHE = 'nagata-nippo-v16';
 
 const PRECACHE = [
   './',
@@ -48,7 +48,11 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      // 消すのは自分の古い版だけ。Cache Storage はオリジン単位なので、
+      // 同じ liner12345.github.io にあるhamanippo のキャッシュ（nippou-v*）も見えている
+      .then((keys) => Promise.all(keys
+        .filter((k) => k.startsWith('nagata-nippo-') && k !== CACHE)
+        .map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
