@@ -50,6 +50,11 @@ All notable changes to this project will be documented in this file.
     the screen stayed on "位置情報を取得中" until the app was killed. It now falls through to
     `住所取得エラー` like any other failure, keeping the coordinates.
   - The settings screen credits the source ("住所: 国土地理院"), as GSI asks.
+- A run was dated by the day 業務完了 was pressed. A run started at 23:50 and closed at
+  00:10 was recorded, reported to LINE and printed on the PDF as the next day. The date is
+  now taken when 業務開始 is pressed and kept in `nippoData_pro_v3`, so it survives a
+  reload; the history record, the LINE text, the PDF and the clipboard export all use it.
+  A run started on an older version has no stored date and is still dated by today.
 - 開始時刻 froze at the time the app had been opened, so a run started hours later was
   recorded — and billed — with the wrong start time. Two separate causes, both fixed:
   - `nippoData_pro_v3` is saved with `screen: 'start'` when 業務開始 is cancelled

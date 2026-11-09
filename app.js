@@ -17,6 +17,9 @@ createApp({
         const vehicleNumberInput = ref(null);
         const vehiclePick = ref('');   // 履歴プルダウンの選択値。選ぶたびに空へ戻す
         const startTime = ref('');
+        // 業務開始を押した日（format-spec §1 の dateStr）。業務完了の日を使うと、
+        // 日をまたいで完了した運行が翌日の日付で記録される
+        const dateStr = ref('');
         const undoStack = ref([]);
         const driverName = ref('');
 
@@ -162,6 +165,7 @@ createApp({
                     // 業務開始後の時刻だけ戻す。start 画面のまま保存された古い時刻を戻すと、
                     // 次に開いたときも「前回開いた時刻」が居座る
                     if (parsed.startTime && screen.value !== 'start') startTime.value = parsed.startTime;
+                    if (parsed.dateStr) dateStr.value = parsed.dateStr;
                     if (parsed.undoStack) undoStack.value = parsed.undoStack;
                     if (parsed.daily) daily.value = Object.assign(emptyDaily(), parsed.daily);
                     if (parsed.fareOverride) {
@@ -260,6 +264,8 @@ createApp({
             const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(val || '');
             return m ? formatDateStr(new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) : '';
         };
+        // 当日の運行の日付。旧版で開始した作業中データは日付を持たないので、今日として扱う
+        const runDateStr = () => dateStr.value || formatDateStr(new Date());
         // <input type="date"> は YYYY-MM-DD しか扱えないので変換して橋渡しする
         const editDateInput = computed({
             get: () => dateStrToInput(editBuffer.value.dateStr),
@@ -282,8 +288,8 @@ createApp({
             const sourceLogs = viewingHistoryMode.value ? historyData.value.logs : logs.value;
 
             editBuffer.value = {
-                // 日付を持つのは履歴レコードだけ。当日の進行中データの日付は
-                // saveAndReset() のときに決まるので、ここでは編集させない
+                // 日付を直せるのは履歴レコードだけ。当日の進行中データの日付は
+                // 業務開始を押した日で、ここでは編集させない
                 dateStr: viewingHistoryMode.value ? historyData.value.dateStr : null,
                 // 車番も日ごとに持つ。無い古い記録は現在の車番を初期値にする
                 vehicleNo: viewingHistoryMode.value
@@ -443,6 +449,7 @@ createApp({
                 logs: logs.value,
                 lastAction: lastAction.value,
                 startTime: startTime.value,
+                dateStr: dateStr.value,
                 undoStack: undoStack.value,
                 daily: daily.value,
                 fareOverride: fareOverride.value
@@ -865,6 +872,7 @@ createApp({
             // 押した瞬間の時刻を記録する。画面の更新が届いていなくても（再開直後など）
             // 古い時刻が日報に載ることはない。手で直してある時刻はそのまま使う
             if (isAutoStartTime()) setStartTimeNow();
+            dateStr.value = formatDateStr(new Date());
             startMileage.value = km;
             logs.value = [];
             undoStack.value = [];
@@ -1030,9 +1038,8 @@ createApp({
             if (total > MAX_DAY_KM &&
                 !confirm(`本日の走行が ${total}km になっています。\nメーターの桁を間違えていませんか。\n\nこのまま完了しますか？`)) return;
             if(!confirm('本日の業務を完了しますか？')) return;
-            const todayStr = formatDateStr(new Date());
             historyList.value.unshift({
-                dateStr: todayStr,
+                dateStr: runDateStr(),
                 startMileage: startMileage.value,
                 startTime: startTime.value,
                 vehicleNo: vehicleNumber.value,
@@ -1098,7 +1105,7 @@ createApp({
             const targetLogs = hist ? (src.logs || []) : logs.value;
             const startKm = hist ? src.startMileage : startMileage.value;
             const startAt = hist ? src.startTime : startTime.value;
-            const date = hist ? src.dateStr : formatDateStr(new Date());
+            const date = hist ? src.dateStr : runDateStr();
             const car = (hist ? (src.vehicleNo || vehicleNumber.value) : vehicleNumber.value) || '';
 
             const groups = createGroups(targetLogs);
@@ -1185,7 +1192,7 @@ createApp({
             });
             return {
                 client: '永田商店',
-                dateStr: hist ? src.dateStr : formatDateStr(new Date()),
+                dateStr: hist ? src.dateStr : runDateStr(),
                 driverName: driverName.value,
                 vehicleNo: (hist ? (src.vehicleNo || vehicleNumber.value) : vehicleNumber.value) || '',
                 startMileage: startKm,
@@ -1271,7 +1278,7 @@ createApp({
             const targetLogs = viewingHistoryMode.value ? historyData.value.logs : logs.value;
             const targetStartKm = viewingHistoryMode.value ? historyData.value.startMileage : startMileage.value;
             const targetStartTime = viewingHistoryMode.value ? historyData.value.startTime : startTime.value;
-            const targetDate = viewingHistoryMode.value ? historyData.value.dateStr : new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' });
+            const targetDate = viewingHistoryMode.value ? historyData.value.dateStr : runDateStr();
             
             const exportGroups = createGroups(targetLogs);
             
