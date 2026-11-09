@@ -493,8 +493,9 @@
 
             <div class="flex flex-col gap-3 mt-4" v-if="!isEditing">
                 <div>
-                    <button @click="shareNippoPdf" :disabled="sharingPdf" class="w-full bg-[#06C755] hover:bg-[#05b04c] disabled:bg-gray-300 text-white font-bold py-4 rounded-2xl shadow-md btn-press flex items-center justify-center gap-2 transition-colors text-lg">
-                        <i class="fa-solid fa-file-pdf text-xl"></i> 日報PDFを送る
+                    <button @click="shareNippoPdf" :disabled="pdfState === 'building'" class="w-full bg-[#06C755] hover:bg-[#05b04c] disabled:bg-gray-300 text-white font-bold py-4 rounded-2xl shadow-md btn-press flex items-center justify-center gap-2 transition-colors text-lg">
+                        <i class="fa-solid text-xl" :class="pdfState === 'building' ? 'fa-circle-notch fa-spin' : 'fa-file-pdf'"></i>
+                        {{ pdfState === 'building' ? '日報PDFを準備中…' : '日報PDFを送る' }}
                     </button>
                     <!-- ファイルを添付できる LINE の URL スキームは存在しないので、
                          PDF は共有シートを通すしかない（format-spec §4.7） -->
@@ -687,13 +688,6 @@
                     </button>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <div v-if="loading" class="fixed inset-0 bg-gray-900/40 z-[60] flex items-center justify-center backdrop-blur-sm">
-        <div class="bg-white p-5 rounded-2xl shadow-xl flex items-center gap-3">
-            <i class="fa-solid fa-circle-notch fa-spin text-2xl text-blue-600"></i>
-            <span class="font-bold text-gray-700">{{ loadingText }}</span>
         </div>
     </div>
 

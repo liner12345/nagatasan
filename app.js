@@ -1,4 +1,4 @@
-const { createApp, ref, onMounted, computed, nextTick } = Vue;
+const { createApp, ref, onMounted, computed, watch, nextTick } = Vue;
 
 createApp({
     setup() {
@@ -8,8 +8,6 @@ createApp({
         const SCREENS = ['start', 'dashboard', 'mileage_check', 'departure_check', 'summary'];
         const INPUT_SCREENS = ['mileage_check', 'departure_check'];
         const inputBuffer = ref(''); 
-        const loading = ref(false);
-        const loadingText = ref('');
         const lastAction = ref('none'); 
         const startMileage = ref(0);
         const logs = ref([]);
@@ -1344,44 +1342,49 @@ createApp({
             };
         };
 
-        // 直前に組んだ PDF。同じ内容なら作り直さずに共有する。
-        // iOS は share() をユーザー操作の直後に呼ぶ必要があり、生成に時間がかかると
-        // 権限切れで弾かれる。2回目のタップはここから即座に共有できる
-        let pdfCache = null;
-        const sharingPdf = ref(false);
+        // iOS は share() をタップと同じ操作の中で呼ばないと NotAllowedError で弾く。
+        // タップを受けてから PDF を組むと間に合わず、毎回2回押しになっていた。
+        // そこで確認画面を開いている間に今の内容で組んでおき、ボタンは組み終えたものを共有するだけにする。
+        // 内容（nippoKey）が変わったら組み直す。組み終えるまでボタンは押せない
+        const PDF_DEBOUNCE = 400;   // ms。数字を打っている間は組み直さない
+        const nippoKey = computed(() =>
+            (screen.value === 'summary' && !isEditing.value ? JSON.stringify(buildNippoData()) : ''));
+        const pdf = ref({ key: '', state: 'idle', blob: null, name: '', error: '' });   // state: building | ready | failed
+        const pdfState = computed(() => (pdf.value.key === nippoKey.value ? pdf.value.state : 'building'));
 
-        const shareNippoPdf = async () => {
-            if (sharingPdf.value) return;
-            const data = buildNippoData();
-
-            if (data.cases.length > NippoForm.MAX_CASES &&
-                !confirm(`案件が ${data.cases.length} 件あります。\n日報は ${NippoForm.MAX_CASES} 件までなので、`
-                         + `${NippoForm.MAX_CASES + 1} 件目以降は載りません。\n\nこのまま作りますか？`)) return;
-            if (!dailyFilled.value && !fareOverrideCount.value &&
-                !confirm('当日実績（①〜⑤）が未入力です。\n回収料金と作業料金が 0 のままになります。\n\nこのまま作りますか？')) return;
-
-            const key = JSON.stringify(data);
-            if (pdfCache && pdfCache.key === key) {
-                await sharePdfFile(pdfCache.blob, pdfCache.name);
-                return;
-            }
-
-            sharingPdf.value = true;
-            loading.value = true;
-            loadingText.value = '日報PDFを作成中...';
-            let out;
+        const buildPdfFor = async (key) => {
+            pdf.value = { key, state: 'building', blob: null, name: '', error: '' };
             try {
-                out = await NippoForm.buildPdf(data);
-                pdfCache = { key, blob: out.blob, name: out.name };
+                // key から戻すのは、組んでいる間に画面の値が変わっても、組む内容を key と揃えるため
+                const out = await NippoForm.buildPdf(JSON.parse(key));
+                if (pdf.value.key === key) pdf.value = { key, state: 'ready', blob: out.blob, name: out.name, error: '' };
             } catch (e) {
                 console.error(e);
-                alert('日報PDFを作れませんでした。\n' + ((e && e.message) || ''));
-                return;
-            } finally {
-                loading.value = false;
-                sharingPdf.value = false;
+                if (pdf.value.key === key) pdf.value = { key, state: 'failed', blob: null, name: '', error: (e && e.message) || '' };
             }
-            await sharePdfFile(out.blob, out.name);
+        };
+
+        let pdfTimer = null;
+        watch(nippoKey, (key) => {
+            clearTimeout(pdfTimer);
+            if (key && key !== pdf.value.key) pdfTimer = setTimeout(() => buildPdfFor(key), PDF_DEBOUNCE);
+        });
+
+        const shareNippoPdf = () => {
+            if (pdfState.value === 'building') return;
+            const data = buildNippoData();
+            if (data.cases.length > NippoForm.MAX_CASES &&
+                !confirm(`案件が ${data.cases.length} 件あります。\n日報は ${NippoForm.MAX_CASES} 件までなので、`
+                         + `${NippoForm.MAX_CASES + 1} 件目以降は載りません。\n\nこのまま送りますか？`)) return;
+            if (!dailyFilled.value && !fareOverrideCount.value &&
+                !confirm('当日実績（①〜⑤）が未入力です。\n回収料金と作業料金が 0 のままになります。\n\nこのまま送りますか？')) return;
+            if (pdfState.value === 'failed') {
+                alert('日報PDFを作れませんでした。\n' + pdf.value.error);
+                buildPdfFor(nippoKey.value);
+                return;
+            }
+            // await を挟まずに共有シートを開く（タップと同じ操作のうちに share() を呼ぶ）
+            sharePdfFile(pdf.value.blob, pdf.value.name);
         };
 
         const sharePdfFile = async (blob, name) => {
@@ -1393,7 +1396,7 @@ createApp({
                 } catch (e) {
                     if (e && e.name === 'AbortError') return;       // ユーザーが閉じただけ
                     if (e && e.name === 'NotAllowedError') {
-                        alert('PDFはできています。\nもう一度「日報PDFをLINEで送る」を押してください。');
+                        alert('PDFはできています。\nもう一度「日報PDFを送る」を押してください。');
                         return;
                     }
                     console.error(e);
@@ -1492,7 +1495,7 @@ createApp({
         };
 
         return {
-            screen, inputBuffer, loading, loadingText, lastAction, startMileage,
+            screen, inputBuffer, lastAction, startMileage,
             historyList, viewingHistoryMode, historyData, showTextToast, showSettings,
             vehicleNumber, vehicleNumberHistory, vehicleNumberInput, vehiclePick, pickVehicleNumber,
             moveVehicleCaretToEnd, saveVehicleNumber, selectVehicleNumber, removeVehicleNumberFromHistory, startTime, undoStack, undo, handleHeaderBack,
@@ -1523,7 +1526,7 @@ createApp({
 
             // 当日実績と日報PDF
             DAILY_FIELDS, activeDaily, persistDaily, dailyFilled, nippoFare, tatekaeTotal,
-            driverName, saveDriverName, shareNippoPdf, sharingPdf,
+            driverName, saveDriverName, shareNippoPdf, pdfState,
 
             // 金額の手直し
             FARE_SECTIONS, activeFareOverride, persistFareOverride, clearFareOverride,

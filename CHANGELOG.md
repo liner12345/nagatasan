@@ -83,6 +83,13 @@ All notable changes to this project will be documented in this file.
   thing to tap by mistake.
 
 ### Fixed
+- "日報PDFを送る" needed two taps. The PDF was built after the tap, which takes long enough
+  that iOS no longer counts the share as part of the tap and refuses it (`NotAllowedError`,
+  then "もう一度…押してください"). The PDF is now built while the report screen is open, and
+  rebuilt 0.4 s after the content stops changing. The button shows "日報PDFを準備中…" until
+  it is ready, then opens the share sheet directly from the tap. If building fails, the tap
+  says so and tries again. The full-screen "作成中" overlay is gone with it; nothing else
+  used it.
 - The arrival address often named a place the driver was not at: a different town, and
   sometimes a different ward. The position was right; the address service was wrong.
   OpenStreetMap's Nominatim got all four of four landmarks with a known address wrong
