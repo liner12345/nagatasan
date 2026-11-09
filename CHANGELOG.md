@@ -47,6 +47,11 @@ All notable changes to this project will be documented in this file.
   in the history and today's records); 現金 when the destination is new. A payment tapped
   by hand stays put even if the destination is changed afterwards. The payment buttons are
   44px tall (they were 38px).
+- The destination list on the 完了 screen also offers recent destinations, newest first,
+  under the nearby ones. It used to offer only destinations learned within a few hundred
+  metres, so with no position, or at a new place, it was empty and the name had to be typed
+  in full. Typing in the name field narrows both lists (full-width/half-width and case are
+  ignored). Only nearby entries have the × that forgets a learned place.
 
 ### Added
 - A "金額を手直し" panel on the report screen. The fare has always been computed from the

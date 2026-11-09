@@ -133,7 +133,6 @@ createApp({
         
         // Intelligent History Feature
         const showCandidateList = ref(false);
-        const filteredCandidates = ref([]);
 
         // GPS Intelligence
         const tempLat = ref(null);
@@ -890,7 +889,6 @@ createApp({
             tempLat.value = null;
             tempLon.value = null;
             tempAccuracy.value = null;
-            refreshCandidates();
             locate(
                 (acc) => { if (job === currentJob) tempAccuracy.value = Math.round(acc); },
                 (lat, lon, accuracy) => {
@@ -898,7 +896,6 @@ createApp({
                     tempLat.value = lat;
                     tempLon.value = lon;
                     tempAccuracy.value = accuracy;
-                    refreshCandidates();
                     // 記録済みなら到着地点を保存する。完了で配送先を学習するのに使う
                     if (job.log) saveData();
                 }
@@ -1072,9 +1069,9 @@ createApp({
         const handleDeparture = () => {
             tempDepartureTime.value = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
             tempRemarks.value = '';
-            refreshCandidates();
-            // 一度行った場所なら、押さなくても候補が出るようにする（到着画面で選んであれば出さない）
-            showCandidateList.value = !tempDestinationName.value && filteredCandidates.value.length > 0;
+            // 候補があれば押さなくても出す（到着画面で選んであれば出さない）
+            const c = destinationCandidates.value;
+            showCandidateList.value = !tempDestinationName.value && c.near.length + c.recent.length > 0;
             screen.value = 'departure_check';
         };
 
@@ -1085,26 +1082,42 @@ createApp({
             return Math.min(400, Math.max(150, acc + 100));
         };
 
-        const refreshCandidates = () => {
-            if (!tempLat.value || !tempLon.value) { filteredCandidates.value = []; return; }
+        // 到着地点の近くで学習した配送先。近い順、同じ名前は1つ
+        const nearbyLocations = computed(() => {
+            if (!tempLat.value || !tempLon.value) return [];
             const radius = candidateRadius();
             const seen = new Set();
-            const list = [];
-            savedLocations.value
+            return savedLocations.value
                 .map((loc) => ({ loc, d: getDistance(tempLat.value, tempLon.value, loc.lat, loc.lon) }))
                 .filter((x) => x.d < radius)
-                .sort((a, b) => a.d - b.d)          // 近い順
-                .forEach(({ loc }) => {
-                    if (seen.has(loc.name)) return;
+                .sort((a, b) => a.d - b.d)
+                .map((x) => x.loc)
+                .filter((loc) => {
+                    if (seen.has(loc.name)) return false;
                     seen.add(loc.name);
-                    list.push(loc);
+                    return true;
                 });
-            filteredCandidates.value = list;
-        };
+        });
+
+        // 完了画面の候補。近くの配送先と、最近行った配送先（新しい順・近くと重なる名前は除く）。
+        // 位置が取れない日や初めての場所でも、最近の配送先から選べる。
+        // 配送先名の欄に入れた文字で絞る（全角半角・大文字小文字は区別しない）
+        const RECENT_LIMIT = 20;
+        const fold = (s) => String(s || '').normalize('NFKC').toLowerCase();
+        const destinationCandidates = computed(() => {
+            const q = fold(tempDestinationName.value.trim());
+            const hit = (name) => fold(name).includes(q);
+            const nearNames = new Set(nearbyLocations.value.map((loc) => loc.name));
+            return {
+                near: nearbyLocations.value.filter((loc) => hit(loc.name)),
+                recent: [...destinationHistory.value.keys()].reverse()
+                    .filter((name) => !nearNames.has(name) && hit(name))
+                    .slice(0, RECENT_LIMIT)
+            };
+        });
 
         const toggleCandidateList = () => {
             showCandidateList.value = !showCandidateList.value;
-            if (showCandidateList.value) refreshCandidates();
         };
 
         const selectCandidate = (name) => {
@@ -1118,7 +1131,6 @@ createApp({
                 !(loc.name === candidate.name && Math.abs(loc.lat - candidate.lat) < 0.0001 && Math.abs(loc.lon - candidate.lon) < 0.0001)
             );
             saveLocations();
-            refreshCandidates();
             showCandidateList.value = true;
         };
 
@@ -1500,7 +1512,7 @@ createApp({
             downloadBackup, restoreBackup, clearAllHistory, deleteHistoryItem, clearLocations,
             
             // Intelligent History
-            showCandidateList, toggleCandidateList, selectCandidate, deleteCandidate, filteredCandidates,
+            showCandidateList, toggleCandidateList, selectCandidate, deleteCandidate, nearbyLocations, destinationCandidates,
             startLocating,
             
             // Navigation
@@ -1520,7 +1532,6 @@ createApp({
             // Edit Mode
             isEditing, editBuffer, enterEditMode, saveEditMode, cancelEditMode, removeGroupFromBuffer,
             isNewPastEntry, addGroupToBuffer, startPastEntry, editDateInput,
-            refreshCandidates,
             getEditLastMileage, calculateEditTotalDistance
         };
     }

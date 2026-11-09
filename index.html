@@ -551,9 +551,9 @@
                         </div>
                         <input type="text" v-model="tempAddress" class="w-full bg-transparent text-sm font-bold text-gray-800 border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1" :placeholder="locating ? '住所を取得中…' : '住所を入力'">
                         <div class="mt-2 flex items-start gap-2">
-                            <div v-if="filteredCandidates.length" class="flex-1 min-w-0 flex flex-wrap gap-1 items-center">
+                            <div v-if="nearbyLocations.length" class="flex-1 min-w-0 flex flex-wrap gap-1 items-center">
                                 <span class="text-xs font-bold text-gray-500">近く:</span>
-                                <button v-for="(cand, idx) in filteredCandidates.slice(0, 3)" :key="idx" @click="selectCandidate(cand.name)"
+                                <button v-for="(cand, idx) in nearbyLocations.slice(0, 3)" :key="idx" @click="selectCandidate(cand.name)"
                                         class="text-sm font-bold px-3 min-h-[44px] rounded-full border max-w-full truncate"
                                         :class="tempDestinationName === cand.name ? 'bg-blue-500 text-white border-blue-600' : 'bg-blue-50 text-blue-600 border-blue-100'">{{ cand.name }}</button>
                             </div>
@@ -620,31 +620,45 @@
                     <div class="relative" @click.stop>
                         <label class="block text-xs font-bold text-gray-500 mb-1">配送先名</label>
                         <div class="flex gap-2">
-                            <input type="text" v-model="tempDestinationName" placeholder="例: 〇〇株式会社" class="h-12 w-full bg-gray-50 border border-gray-300 text-gray-800 font-bold rounded-xl p-3 appearance-none flex-1">
+                            <input type="text" v-model="tempDestinationName" @input="showCandidateList = true" @focus="showCandidateList = true" placeholder="例: 〇〇株式会社" class="h-12 w-full bg-gray-50 border border-gray-300 text-gray-800 font-bold rounded-xl p-3 appearance-none flex-1">
                             <button @click="toggleCandidateList" class="w-12 h-12 flex-shrink-0 bg-blue-50 text-blue-600 border border-blue-200 rounded-xl flex items-center justify-center hover:bg-blue-100 transition-colors">
                                 <i class="fa-solid fa-caret-down text-xl"></i>
                             </button>
                         </div>
 
-                        <div v-if="showCandidateList" class="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 z-50 max-h-48 overflow-y-auto">
-                            <div v-if="filteredCandidates.length > 0">
-                                <div class="px-3 py-2 bg-gray-50 text-xs font-bold text-gray-500 border-b border-gray-100 flex justify-between items-center">
-                                    <span>近くの履歴から選択</span>
-                                    <button @click="showCandidateList = false" class="text-gray-400"><i class="fa-solid fa-times"></i></button>
+                        <div v-if="showCandidateList && (destinationCandidates.near.length || destinationCandidates.recent.length || !tempDestinationName)"
+                             class="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 z-50 max-h-60 overflow-y-auto">
+                            <div v-if="destinationCandidates.near.length || destinationCandidates.recent.length">
+                                <div class="pl-3 bg-gray-50 text-xs font-bold text-gray-500 border-b border-gray-100 flex justify-between items-center">
+                                    <span>履歴から選択</span>
+                                    <button @click="showCandidateList = false" class="tap-target text-gray-400" aria-label="候補を閉じる"><i class="fa-solid fa-times"></i></button>
                                 </div>
-                                <ul>
-                                    <li v-for="(cand, idx) in filteredCandidates" :key="idx" class="border-b border-gray-50 last:border-0 hover:bg-blue-50 flex items-center justify-between pr-3">
-                                        <button @click="selectCandidate(cand.name)" class="flex-1 text-left p-3 font-bold text-gray-700 text-sm truncate">
-                                            {{ cand.name }}
-                                        </button>
-                                        <button @click="deleteCandidate(cand)" class="tap-target text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors">
-                                            <i class="fa-solid fa-times"></i>
-                                        </button>
-                                    </li>
-                                </ul>
+                                <template v-if="destinationCandidates.near.length">
+                                    <div class="px-3 pt-2 text-xs font-bold text-gray-400">近く</div>
+                                    <ul>
+                                        <li v-for="(cand, idx) in destinationCandidates.near" :key="'n' + idx" class="border-b border-gray-50 last:border-0 hover:bg-blue-50 flex items-center justify-between pr-3">
+                                            <button @click="selectCandidate(cand.name)" class="flex-1 text-left p-3 font-bold text-gray-700 text-sm truncate">
+                                                {{ cand.name }}
+                                            </button>
+                                            <button @click="deleteCandidate(cand)" class="tap-target text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors" :aria-label="cand.name + ' をこの場所の候補から消す'">
+                                                <i class="fa-solid fa-times"></i>
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </template>
+                                <template v-if="destinationCandidates.recent.length">
+                                    <div class="px-3 pt-2 text-xs font-bold text-gray-400">最近</div>
+                                    <ul>
+                                        <li v-for="name in destinationCandidates.recent" :key="'r' + name" class="border-b border-gray-50 last:border-0 hover:bg-blue-50">
+                                            <button @click="selectCandidate(name)" class="w-full text-left p-3 font-bold text-gray-700 text-sm truncate">
+                                                {{ name }}
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </template>
                             </div>
                             <div v-else class="p-4 text-center text-xs text-gray-500 font-bold">
-                                近くの履歴はありません
+                                履歴はありません
                             </div>
                         </div>
                     </div>
