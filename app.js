@@ -755,7 +755,13 @@ createApp({
                 const what = last ? `（${last.type === 'arrival' ? '到着' : '完了'} ${last.time}）` : '';
                 if (confirm(`直前の記録${what}を取り消しますか？`)) undo();
             } else {
-                if (confirm('業務開始を取り消してトップ画面に戻りますか？\n（入力内容はリセットされます）')) {
+                // 当日分を編集して保存すると取り消しの履歴が空になり、記録があってもここへ来る。
+                // 1回の承諾でその日の記録が全部消えるので、消える件数を出す
+                const n = logs.value.length;
+                const msg = n
+                    ? `この運行の記録 ${n} 件をすべて消して、業務開始を取り消しますか？`
+                    : '業務開始を取り消してトップ画面に戻りますか？\n（入力内容はリセットされます）';
+                if (confirm(msg)) {
                     resetRun();
                     saveData();
                 }

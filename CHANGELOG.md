@@ -63,6 +63,9 @@ All notable changes to this project will be documented in this file.
 - The header's 戻る deleted the last record on a single tap, with no question asked. It
   now asks first and names the record it is about to remove, for example
   "直前の記録（完了 10:23）を取り消しますか？" (hub state-machines SM-1).
+- After saving an edit of today's run the undo stack is empty, so the header shows トップへ
+  even though the run has records, and one OK wiped them all. When there are records the
+  question now says how many will be deleted (`この運行の記録 N 件をすべて消して…`).
 - Cancelling 業務開始 (トップへ) kept the day's results (①〜④) and the 金額を手直し
   amounts, so the next run was billed with them: an overridden total of 9,999 was still
   the total of the run started after the cancel. The cancel and 業務完了 now share one
