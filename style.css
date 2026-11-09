@@ -179,6 +179,10 @@ input[type="time"] {
     justify-content: center;
 }
 
+/* 横に流す行のスクロールバーを隠す。端で切れた候補が、横に続くことの目印になる */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
 /* アニメーション */
 .btn-press:active:not(:disabled) { transform: scale(0.97); }
 

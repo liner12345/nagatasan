@@ -77,14 +77,13 @@
                     </div>
                 </div>
 
-                <p class="text-gray-500 mb-2 text-xs font-bold">出発時のメーター距離</p>
+                <p class="text-gray-500 mb-2 text-xs font-bold">出発時のメーター距離<span v-if="meterBase">（灰色は前回の値）</span></p>
                 
-                <div class="flex justify-between gap-1 px-1" :class="meterBase ? 'mb-2' : 'mb-6'">
+                <div class="flex justify-between gap-1 mb-6 px-1">
                     <div v-for="(slot, i) in meterDigits" :key="i" class="digit-box" :class="{ filled: slot.typed, hint: slot.d && !slot.typed }">
                         {{ slot.d }}
                     </div>
                 </div>
-                <p v-if="meterBase" class="text-xs font-bold text-gray-500 mb-4">灰色は前回の値。変わった桁から下を押す</p>
 
                 <div class="grid grid-cols-3 gap-3 mb-6">
                     <button v-for="n in [1,2,3,4,5,6,7,8,9]" :key="n" @click="appendDigit(n)" class="keypad-btn">{{ n }}</button>
@@ -528,7 +527,11 @@
     <div v-if="screen === 'mileage_check'" class="fixed inset-0 bg-gray-900/60 z-50 overflow-y-auto backdrop-blur-sm">
         <div class="min-h-full flex items-center justify-center p-4">
             <div class="bg-white w-full max-w-md p-6 rounded-3xl shadow-2xl animate-slide-in flex flex-col my-auto">
-                <h3 class="text-xl font-bold mb-2 text-gray-800">到着時の距離</h3>
+                <!-- 入力画面の高さを増やさないよう、説明は見出しの行に置く（390px 幅の端末で決定ボタンを画面内に収める） -->
+                <div class="flex items-baseline justify-between gap-2 mb-2">
+                    <h3 class="text-xl font-bold text-gray-800">到着時の距離</h3>
+                    <span v-if="meterBase" class="text-xs font-bold text-gray-500">灰色は前回の値</span>
+                </div>
                 
                 <div class="mb-4 flex justify-center">
                     <div class="bg-gray-50 px-4 py-2 rounded-xl border border-gray-200 flex items-center gap-3">
@@ -539,7 +542,7 @@
 
                 <div class="mb-4 bg-gray-50 p-3 rounded-lg border border-gray-200 flex items-start gap-2">
                     <i class="fa-solid fa-map-pin text-red-500 mt-3 flex-shrink-0"></i>
-                    <div class="w-full">
+                    <div class="flex-1 min-w-0">
                         <div class="flex items-center justify-between mb-1 gap-2">
                             <label class="text-xs font-bold text-gray-500">住所（修正可能）</label>
                             <span v-if="locating && tempLat === null" class="text-xs font-bold px-1.5 py-0.5 rounded whitespace-nowrap bg-gray-100 text-gray-600">
@@ -550,18 +553,19 @@
                                 GPS誤差 ±{{ tempAccuracy }}m<span v-if="tempAccuracy > 50">・要確認</span>
                             </span>
                         </div>
-                        <input type="text" v-model="tempAddress" class="w-full bg-transparent text-sm font-bold text-gray-800 border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1" :placeholder="locating ? '住所を取得中…' : '住所を入力'">
-                        <div class="mt-2 flex items-start gap-2">
-                            <div v-if="nearbyLocations.length" class="flex-1 min-w-0 flex flex-wrap gap-1 items-center">
-                                <span class="text-xs font-bold text-gray-500">近く:</span>
-                                <button v-for="(cand, idx) in nearbyLocations.slice(0, 3)" :key="idx" @click="selectCandidate(cand.name)"
-                                        class="text-sm font-bold px-3 min-h-[44px] rounded-full border max-w-full truncate"
-                                        :class="tempDestinationName === cand.name ? 'bg-blue-500 text-white border-blue-600' : 'bg-blue-50 text-blue-600 border-blue-100'">{{ cand.name }}</button>
-                            </div>
+                        <div class="flex items-center gap-2">
+                            <input type="text" v-model="tempAddress" class="flex-1 min-w-0 bg-transparent text-sm font-bold text-gray-800 border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1" :placeholder="locating ? '住所を取得中…' : '住所を入力'">
                             <button @click="startLocating" :disabled="locating"
-                                    class="ml-auto flex-shrink-0 min-h-[44px] px-3 rounded-lg border border-gray-300 bg-white text-sm font-bold text-gray-600 disabled:text-gray-300 flex items-center gap-1 btn-press">
+                                    class="flex-shrink-0 min-h-[44px] px-3 rounded-lg border border-gray-300 bg-white text-sm font-bold text-gray-600 disabled:text-gray-300 flex items-center gap-1 btn-press">
                                 <i class="fa-solid fa-location-crosshairs"></i> 測り直す
                             </button>
+                        </div>
+                        <!-- 候補は折り返さず横に流す。縦に積むと入力画面が伸び、決定ボタンが画面の外へ出る -->
+                        <div v-if="nearbyLocations.length" class="mt-2 flex gap-1 items-center overflow-x-auto no-scrollbar">
+                            <span class="text-xs font-bold text-gray-500 flex-shrink-0">近く:</span>
+                            <button v-for="(cand, idx) in nearbyLocations.slice(0, 3)" :key="idx" @click="selectCandidate(cand.name)"
+                                    class="text-sm font-bold px-3 min-h-[44px] rounded-full border flex-shrink-0 max-w-[10rem] truncate"
+                                    :class="tempDestinationName === cand.name ? 'bg-blue-500 text-white border-blue-600' : 'bg-blue-50 text-blue-600 border-blue-100'">{{ cand.name }}</button>
                         </div>
                     </div>
                 </div>
@@ -583,14 +587,13 @@
                     </div>
                 </div>
 
-                <div class="flex justify-between gap-1 px-1" :class="meterBase ? 'mb-2' : 'mb-4'">
+                <div class="flex justify-between gap-1 mb-4 px-1">
                     <div v-for="(slot, i) in meterDigits" :key="i" class="digit-box" :class="{ filled: slot.typed, hint: slot.d && !slot.typed }">
                         {{ slot.d }}
                     </div>
                 </div>
-                <p v-if="meterBase" class="text-xs font-bold text-gray-500 text-center mb-4">灰色は前回の値。変わった桁から下を押す</p>
 
-                <div class="grid grid-cols-3 gap-3 mb-6">
+                <div class="grid grid-cols-3 gap-3 mb-4">
                     <button v-for="n in [1,2,3,4,5,6,7,8,9]" :key="n" @click="appendDigit(n)" class="keypad-btn">{{ n }}</button>
                     <div class="keypad-spacer"></div>
                     <button @click="appendDigit(0)" class="keypad-btn">0</button>

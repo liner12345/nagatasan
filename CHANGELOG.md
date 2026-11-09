@@ -52,6 +52,13 @@ All notable changes to this project will be documented in this file.
   metres, so with no position, or at a new place, it was empty and the name had to be typed
   in full. Typing in the name field narrows both lists (full-width/half-width and case are
   ignored). Only nearby entries have the × that forgets a learned place.
+- The arrival screen stays one phone screen tall. On a 390px-wide screen the 44px nearby
+  chips stacked one per line and pushed 決定 below the fold. They now scroll sideways on a
+  single row, 測り直す sits beside the address it refreshes, and the hint for the grey meter
+  ("灰色は前回の値") sits on the title line. The screen is 810px tall at that width, against
+  803px before this round of changes.
+  - The address column next to the pin icon was 100% wide plus the icon, so it ran past the
+    card's right edge. It was invisible until a bordered button sat at that edge.
 
 ### Added
 - A "金額を手直し" panel on the report screen. The fare has always been computed from the
