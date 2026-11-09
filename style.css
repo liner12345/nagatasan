@@ -80,6 +80,12 @@ body {
     background-color: #ffffff;
     color: #111827;
 }
+/* 前回の値。押した桁（filled）と見分けがつくよう、薄い文字と点線の枠にする */
+.digit-box.hint {
+    border-style: dashed;
+    background-color: #f9fafb;
+    color: #9ca3af;
+}
 
 /* キーパッド */
 .keypad-btn {

@@ -79,11 +79,12 @@
 
                 <p class="text-gray-500 mb-2 text-xs font-bold">出発時のメーター距離</p>
                 
-                <div class="flex justify-between gap-1 mb-6 px-1">
-                    <div v-for="i in 6" :key="i" class="digit-box" :class="{ 'filled': getDisplayDigit(i) !== '' }">
-                        {{ getDisplayDigit(i) }}
+                <div class="flex justify-between gap-1 px-1" :class="meterBase ? 'mb-2' : 'mb-6'">
+                    <div v-for="(slot, i) in meterDigits" :key="i" class="digit-box" :class="{ filled: slot.typed, hint: slot.d && !slot.typed }">
+                        {{ slot.d }}
                     </div>
                 </div>
+                <p v-if="meterBase" class="text-xs font-bold text-gray-500 mb-4">灰色は前回の値。変わった桁から下を押す</p>
 
                 <div class="grid grid-cols-3 gap-3 mb-6">
                     <button v-for="n in [1,2,3,4,5,6,7,8,9]" :key="n" @click="appendDigit(n)" class="keypad-btn">{{ n }}</button>
@@ -581,11 +582,12 @@
                     </div>
                 </div>
 
-                <div class="flex justify-between gap-1 mb-4 px-1">
-                    <div v-for="i in 6" :key="i" class="digit-box" :class="{ 'filled': getDisplayDigit(i) !== '' }">
-                        {{ getDisplayDigit(i) }}
+                <div class="flex justify-between gap-1 px-1" :class="meterBase ? 'mb-2' : 'mb-4'">
+                    <div v-for="(slot, i) in meterDigits" :key="i" class="digit-box" :class="{ filled: slot.typed, hint: slot.d && !slot.typed }">
+                        {{ slot.d }}
                     </div>
                 </div>
+                <p v-if="meterBase" class="text-xs font-bold text-gray-500 text-center mb-4">灰色は前回の値。変わった桁から下を押す</p>
 
                 <div class="grid grid-cols-3 gap-3 mb-6">
                     <button v-for="n in [1,2,3,4,5,6,7,8,9]" :key="n" @click="appendDigit(n)" class="keypad-btn">{{ n }}</button>

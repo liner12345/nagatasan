@@ -443,15 +443,6 @@ createApp({
                 inputBuffer.value = inputBuffer.value.slice(0, -1);
             }
         };
-        
-        const getDisplayDigit = (i) => {
-            const maxDigits = 6;
-            const currentLength = inputBuffer.value.length;
-            const emptySlots = maxDigits - currentLength;
-            
-            if (i <= emptySlots) return '';
-            else return inputBuffer.value[i - emptySlots - 1];
-        };
 
         // --- Save & Storage ---
         const saveData = () => {
@@ -925,6 +916,43 @@ createApp({
             return '';
         };
 
+        // --- メーターの入力 ---
+        // 前回の値（meterBase）を灰色で出しておき、押した数字はその下の桁を置き換える。
+        // 前回 123456 で 7・8 と押せば 123478。変わった桁から下だけ押せばよい。
+        // 決定には1桁以上押す必要がある（前回の値のまま記録しない）
+        const METER_DIGITS = 6;
+
+        // その運行の最後のメーター。到着が無ければ開始 + 走行（01_nippo.py の C5 と同じ決め方）
+        const runEndKm = (item) => {
+            const arr = (item.logs || []).filter((l) => l.type === 'arrival' && Number(l.mileage) > 0);
+            if (arr.length) return Number(arr[arr.length - 1].mileage);
+            const start = Number(item.startMileage) || 0;
+            return start > 0 ? start + (Number(item.totalDistance) || 0) : null;
+        };
+
+        const meterBase = computed(() => {
+            if (screen.value === 'mileage_check') return lastArrivalKm() || null;
+            if (screen.value !== 'start') return null;
+            // 業務開始は、同じ車番で前回走った運行の最後（履歴は新しい順）
+            const prev = historyList.value.find((item) => (item.vehicleNo || '') === vehicleNumber.value);
+            return prev ? runEndKm(prev) : null;
+        });
+
+        const meterText = computed(() => {
+            const typed = inputBuffer.value;
+            const base = meterBase.value ? String(meterBase.value) : '';
+            if (typed.length >= base.length) return typed;
+            return base.slice(0, base.length - typed.length) + typed;
+        });
+        const meterValue = computed(() => (inputBuffer.value ? Number(meterText.value) : NaN));
+
+        // 6つの枠に右詰めで出す。typed = 押した桁（それ以外は前回の値）
+        const meterDigits = computed(() => {
+            const text = meterText.value.slice(-METER_DIGITS).padStart(METER_DIGITS, ' ');
+            const typed = inputBuffer.value.length;
+            return [...text].map((d, i) => ({ d: d.trim(), typed: i >= METER_DIGITS - typed }));
+        });
+
         // 保存済みの記録を検査して、履歴一覧に印を出す
         const historyIssue = (item) => {
             if (!item) return '';
@@ -948,7 +976,7 @@ createApp({
 
         // --- Core Actions ---
         const startWork = () => {
-            const km = Number(inputBuffer.value);
+            const km = meterValue.value;
             if (!inputBuffer.value || !Number.isFinite(km) || km <= 0) {
                 alert('開始メーターを入力してください。');
                 return;
@@ -979,7 +1007,7 @@ createApp({
         };
 
         const confirmArrival = () => {
-            const km = Number(inputBuffer.value);
+            const km = meterValue.value;
             const issue = mileageIssue(km);
             if (issue && !confirm(issue + '\nこのまま記録しますか？')) return;
 
@@ -1436,7 +1464,7 @@ createApp({
             moveVehicleCaretToEnd, saveVehicleNumber, selectVehicleNumber, removeVehicleNumberFromHistory, startTime, undoStack, undo, handleHeaderBack,
             
             // Keypad
-            appendDigit, removeDigit, getDisplayDigit,
+            appendDigit, removeDigit, meterDigits, meterBase,
 
             // Modal & Data
             // 【修正 #6】tempLocation エイリアスを廃止し tempAddress に統一

@@ -34,6 +34,15 @@ All notable changes to this project will be documented in this file.
 - The nearby destinations under the address ("近く:") can be tapped. Tapping one picks it
   as this case's destination, exactly like picking it on the 完了 screen, and the 完了
   screen then opens with it filled in.
+- The meter starts from the previous reading, so only the digits that changed need typing.
+  On 業務開始 it is the last meter of the previous run with the same vehicle number; on 到着
+  it is the previous arrival (or the start meter). The previous reading shows in grey in
+  dashed boxes; each digit typed replaces the lowest digits, so with 123456 shown,
+  typing 7 8 gives 123478. Typing all six digits still works as before.
+  - 決定 still needs at least one digit typed, so the grey value is never recorded by an
+    absent-minded tap.
+  - The distance checks are unchanged: a meter lower than the previous one, or a leg over
+    200 km, still asks before recording.
 
 ### Added
 - A "金額を手直し" panel on the report screen. The fare has always been computed from the
