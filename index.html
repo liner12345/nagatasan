@@ -428,19 +428,36 @@
                         <h3 class="text-sm font-bold text-gray-700 flex items-center gap-2">
                             <i class="fa-solid fa-clipboard-list text-blue-500"></i> 当日実績
                         </h3>
-                        <span class="text-xs font-bold px-2 py-1 rounded-full"
-                              :class="dailyFilled ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'">
-                            {{ dailyFilled ? '入力済' : '未入力' }}
-                        </span>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
-                        <div v-for="f in DAILY_FIELDS" :key="f.key">
+                        <div v-for="f in DAILY_STICKY_FIELDS" :key="f.key">
                             <label class="text-xs font-bold text-gray-500 block mb-1">
                                 {{ f.label }} <span class="font-normal">（{{ f.unit }}）</span>
                             </label>
                             <input type="number" inputmode="numeric" min="0" v-model="activeDaily[f.key]" @change="persistDaily"
                                    class="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-2 text-base font-bold text-gray-800 text-right focus:border-blue-500 focus:outline-none">
                         </div>
+                    </div>
+
+                    <!-- ①〜④はその仕事が無い日がほとんど。値がある日は開いたまま出す -->
+                    <div class="border-t border-gray-100 mt-3 pt-3">
+                        <button v-if="!dailyFilled" @click="showDailyExtra = !showDailyExtra"
+                                class="w-full min-h-[44px] bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-600 font-bold py-2.5 rounded-xl btn-press flex items-center justify-center gap-2 text-sm">
+                            ①〜④を入れる
+                            <i class="fa-solid text-xs" :class="showDailyExtra ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                        </button>
+                        <div v-if="showDailyExtra || dailyFilled" class="grid grid-cols-2 gap-3" :class="{ 'mt-3': !dailyFilled }">
+                            <div v-for="f in DAILY_EXTRA_FIELDS" :key="f.key">
+                                <label class="text-xs font-bold text-gray-500 block mb-1">
+                                    {{ f.label }} <span class="font-normal">（{{ f.unit }}）</span>
+                                </label>
+                                <input type="number" inputmode="numeric" min="0" v-model="activeDaily[f.key]" @change="persistDaily"
+                                       class="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-2 text-base font-bold text-gray-800 text-right focus:border-blue-500 focus:outline-none">
+                            </div>
+                        </div>
+                        <p v-if="showDailyExtra || dailyFilled" class="text-xs text-gray-500 mt-2 leading-relaxed">
+                            入れた値はそのまま日報の黄色セルになります。空欄の欄は 0 円です。
+                        </p>
                     </div>
                     <div class="flex items-baseline justify-between border-t border-gray-100 mt-3 pt-3">
                         <span class="text-xs font-bold text-gray-500">この日の運賃（{{ fareOverrideCount ? '手直しあり' : '自動' }}）</span>
@@ -450,10 +467,6 @@
                         <span class="text-xs font-bold text-gray-500">立替金（高速・駐車）</span>
                         <span class="text-sm font-bold text-gray-700">{{ tatekaeTotal.toLocaleString('ja-JP') }} 円</span>
                     </div>
-                    <p class="text-xs text-gray-500 mt-3 leading-relaxed">
-                        入れた値はそのまま日報の黄色セルになります。空欄のままだと回収料金と作業料金が 0 のまま請求されます。
-                    </p>
-
                     <!-- 金額の手直し（format-spec §3.1）。毎回は出さず、ボタンを押したときだけ開く -->
                     <div class="border-t border-gray-100 mt-3 pt-3">
                         <button @click="showFareEdit = !showFareEdit"

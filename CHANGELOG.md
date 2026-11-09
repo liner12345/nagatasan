@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+- 当日実績 ①〜④ are folded behind a 「①〜④を入れる」 button, because on most days there is no
+  such work. ⑤夏季手当 stays visible. On a day that already has a value in ①〜④ the fields
+  are shown open. The 入力済/未入力 badge is gone, and sending the nippo PDF no longer asks
+  「当日実績が未入力です」 when ①〜④ are empty. The cache is `nagata-nippo-v28`.
 - The app is now called **永田日報** — the document title, the header, the manifest
   `name`/`short_name`, and a new `apple-mobile-web-app-title` so iOS uses it for the home
   screen too. It was "スマホ日報 - Smart Log Ultimate V3.9" / "配送日報 Pro".

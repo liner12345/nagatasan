@@ -36,6 +36,9 @@ createApp({
             { key: 'kaki',     label: '⑤夏季手当', unit: '円', sticky: true }
         ];
         const DAILY_INPUT_KEYS = DAILY_FIELDS.filter((f) => !f.sticky).map((f) => f.key);
+        // ①〜④はその仕事が無い日がほとんどなので、畳んでおき必要な日だけ開く
+        const DAILY_STICKY_FIELDS = DAILY_FIELDS.filter((f) => f.sticky);
+        const DAILY_EXTRA_FIELDS = DAILY_FIELDS.filter((f) => !f.sticky);
         const emptyDaily = () => {
             const d = {};
             DAILY_FIELDS.forEach((f) => { d[f.key] = ''; });
@@ -72,6 +75,7 @@ createApp({
         const fareOverride = ref(emptyFareOverride());
         // ボタンを押したときだけ入力欄を出す。毎回は出さない
         const showFareEdit = ref(false);
+        const showDailyExtra = ref(false);
 
         // History & Settings
         const historyList = ref([]);
@@ -751,6 +755,7 @@ createApp({
             // 手直しはその運行限り。次へは持ち越さない
             fareOverride.value = emptyFareOverride();
             showFareEdit.value = false;
+            showDailyExtra.value = false;
             screen.value = 'start';
             startMileage.value = 0;
             logs.value = [];
@@ -1171,6 +1176,7 @@ createApp({
             editingIndex.value = -1;
             showSettings.value = false;
             showFareEdit.value = false;
+            showDailyExtra.value = false;
             historyData.value = null;
             if (screen.value !== 'start') screen.value = 'start';
         };
@@ -1376,8 +1382,6 @@ createApp({
             if (data.cases.length > NippoForm.MAX_CASES &&
                 !confirm(`案件が ${data.cases.length} 件あります。\n日報は ${NippoForm.MAX_CASES} 件までなので、`
                          + `${NippoForm.MAX_CASES + 1} 件目以降は載りません。\n\nこのまま送りますか？`)) return;
-            if (!dailyFilled.value && !fareOverrideCount.value &&
-                !confirm('当日実績（①〜⑤）が未入力です。\n回収料金と作業料金が 0 のままになります。\n\nこのまま送りますか？')) return;
             if (pdfState.value === 'failed') {
                 alert('日報PDFを作れませんでした。\n' + pdf.value.error);
                 buildPdfFor(nippoKey.value);
@@ -1525,7 +1529,7 @@ createApp({
             buildReportText, shareReport, copyReportText,
 
             // 当日実績と日報PDF
-            DAILY_FIELDS, activeDaily, persistDaily, dailyFilled, nippoFare, tatekaeTotal,
+            DAILY_FIELDS, DAILY_STICKY_FIELDS, DAILY_EXTRA_FIELDS, showDailyExtra, activeDaily, persistDaily, dailyFilled, nippoFare, tatekaeTotal,
             driverName, saveDriverName, shareNippoPdf, pdfState,
 
             // 金額の手直し
