@@ -652,8 +652,8 @@
                     <div>
                         <label class="block text-xs font-bold text-gray-500 mb-1">支払い方法</label>
                         <div class="grid grid-cols-4 gap-2">
-                            <button v-for="opt in paymentOptions" :key="opt" @click="tempPaymentMethod = opt" 
-                                class="py-2 rounded-lg text-sm font-bold border transition-all"
+                            <button v-for="opt in paymentOptions" :key="opt" @click="paymentChoice = opt"
+                                class="min-h-[44px] rounded-lg text-sm font-bold border transition-all"
                                 :class="tempPaymentMethod === opt ? 'bg-blue-500 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'">
                                 {{ opt }}
                             </button>

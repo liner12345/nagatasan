@@ -105,9 +105,31 @@ createApp({
         // Departure Modal Data
         const tempDepartureTime = ref('');
         const tempDestinationName = ref('');
-        const tempPaymentMethod = ref('現金');
         const tempRemarks = ref('');
         const paymentOptions = ['現金', 'カード', '請求書', 'web', '該当なし'];
+
+        // 配送先名 → そこで最後に使った支払。履歴（古い順）、当日の記録の順に入れ直すので、
+        // Map の並びは行った順（末尾が直近）になる
+        const destinationHistory = computed(() => {
+            const map = new Map();
+            const visit = (list) => (list || []).forEach((l) => {
+                const name = l.type === 'departure' ? (l.destination || '').trim() : '';
+                if (!name) return;
+                map.delete(name);
+                map.set(name, l.payment);
+            });
+            for (let i = historyList.value.length - 1; i >= 0; i--) visit(historyList.value[i].logs);
+            visit(logs.value);
+            return map;
+        });
+
+        // 押して選んだ支払。選んでいなければ、その配送先で前回使った支払（無ければ現金）
+        const paymentChoice = ref('');
+        const tempPaymentMethod = computed(() => {
+            if (paymentChoice.value) return paymentChoice.value;
+            const last = destinationHistory.value.get(tempDestinationName.value.trim());
+            return paymentOptions.includes(last) ? last : '現金';
+        });
         
         // Intelligent History Feature
         const showCandidateList = ref(false);
@@ -997,8 +1019,9 @@ createApp({
 
         const handleArrival = () => {
             tempTime.value = nowHm();   // 押した時刻
-            // 配送先は案件ごと。到着画面の「近く」で選んだら、完了画面にそのまま出す
+            // 配送先と支払は案件ごと。到着画面の「近く」で選んだら、完了画面にそのまま出す
             tempDestinationName.value = '';
+            paymentChoice.value = '';
             tempTollFee.value = '';
             tempParkingFee.value = '';
             inputBuffer.value = '';
@@ -1048,7 +1071,6 @@ createApp({
         // --- Departure & History Logic ---
         const handleDeparture = () => {
             tempDepartureTime.value = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-            tempPaymentMethod.value = '現金';
             tempRemarks.value = '';
             refreshCandidates();
             // 一度行った場所なら、押さなくても候補が出るようにする（到着画面で選んであれば出さない）
@@ -1470,7 +1492,7 @@ createApp({
             // 【修正 #6】tempLocation エイリアスを廃止し tempAddress に統一
             tempAddress, tempTime, tempAccuracy, tempTollFee, tempParkingFee, locating, addressWaits, tempLat,
             historyIssue,
-            tempDepartureTime, tempDestinationName, tempPaymentMethod, tempRemarks, paymentOptions,
+            tempDepartureTime, tempDestinationName, tempPaymentMethod, paymentChoice, tempRemarks, paymentOptions,
             confirmDeparture, handleArrival, confirmArrival, cancelModal, handleDeparture,
 
             // History & Backup

@@ -43,6 +43,10 @@ All notable changes to this project will be documented in this file.
     absent-minded tap.
   - The distance checks are unchanged: a meter lower than the previous one, or a leg over
     200 km, still asks before recording.
+- The payment on the 完了 screen starts as the one last used at that destination (looked up
+  in the history and today's records); 現金 when the destination is new. A payment tapped
+  by hand stays put even if the destination is changed afterwards. The payment buttons are
+  44px tall (they were 38px).
 
 ### Added
 - A "金額を手直し" panel on the report screen. The fare has always been computed from the
