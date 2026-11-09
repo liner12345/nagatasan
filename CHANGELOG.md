@@ -55,6 +55,11 @@ All notable changes to this project will be documented in this file.
   now taken when 業務開始 is pressed and kept in `nippoData_pro_v3`, so it survives a
   reload; the history record, the LINE text, the PDF and the clipboard export all use it.
   A run started on an older version has no stored date and is still dated by today.
+- Saving an edit of today's run left `lastAction` and the undo stack as they were before
+  the edit. Deleting the last arrival kept 完了 enabled and 到着 disabled, so the next tap
+  wrote a 完了 with no arrival. And the header's 戻る restored the pre-edit snapshot,
+  silently throwing the edit away. Saving now recomputes `lastAction` from the last record
+  (`start` when there is none) and empties the undo stack (hub state-machines SM-2).
 - 開始時刻 froze at the time the app had been opened, so a run started hours later was
   recorded — and billed — with the wrong start time. Two separate causes, both fixed:
   - `nippoData_pro_v3` is saved with `screen: 'start'` when 業務開始 is cancelled

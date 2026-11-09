@@ -383,6 +383,11 @@ createApp({
                 startMileage.value = editBuffer.value.startMileage;
                 startTime.value = editBuffer.value.startTime;
                 logs.value = newLogs;
+                // 押せるボタン（到着／完了）は最後の記録で決まる。編集前のままだと、
+                // 到着を消したのに完了が押せて、到着の無い完了行ができる
+                lastAction.value = newLogs.length ? newLogs[newLogs.length - 1].type : 'start';
+                // 「戻る」は編集前のスナップショットへ戻すので、編集が黙って消える
+                undoStack.value = [];
                 saveData();
             }
 
