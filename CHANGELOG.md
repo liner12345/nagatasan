@@ -16,6 +16,19 @@ All notable changes to this project will be documented in this file.
   worker still asks the network first for the app's own files, but gives up after 3 s and
   serves the cached copy. A response that arrives later still updates the cache, so the
   next launch gets it. Only `nagata-nippo-*` caches are ever deleted, as before.
+- 到着 opens the meter screen at once. It used to sit behind "位置情報を取得中..." until the
+  position and the address were both in, up to 20 s on a poor fix. The time is taken when
+  the button is pressed; the position and the address are fetched in the background and
+  fill the address field when they arrive ("測位中 ±Nm" shows meanwhile).
+  - Recording the meter before the address is in is fine. The arrival is stored with
+    `住所取得エラー` and gets the address as soon as it arrives. It goes only into that
+    arrival: if the arrival was undone in the meantime, nothing is written.
+  - If the app is reloaded while the address is still on its way, the arrival keeps
+    `住所取得エラー`, a value the backup JSON already allows. No in-between value such as
+    "取得中" is ever saved.
+  - An address typed by hand is never overwritten.
+  - The input screens are never saved as the current screen, even when the background work
+    saves the run while one is open; a reload always comes back to the dashboard.
 
 ### Added
 - A "金額を手直し" panel on the report screen. The fare has always been computed from the

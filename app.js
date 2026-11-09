@@ -6,6 +6,7 @@ createApp({
         const screen = ref('start'); 
         // SM-1 の5状態。localStorage から復元する値をこれで検証する
         const SCREENS = ['start', 'dashboard', 'mileage_check', 'departure_check', 'summary'];
+        const INPUT_SCREENS = ['mileage_check', 'departure_check'];
         const inputBuffer = ref(''); 
         const loading = ref(false);
         const loadingText = ref('');
@@ -455,7 +456,9 @@ createApp({
         // --- Save & Storage ---
         const saveData = () => {
             const data = {
-                screen: screen.value,
+                // 入力画面は保存しない（SM-1）。開いている間に裏の位置取りが保存しても、
+                // 再読込で戻るのは dashboard。入力途中の値は残っていないので、入力画面へは戻せない
+                screen: INPUT_SCREENS.includes(screen.value) ? 'dashboard' : screen.value,
                 startMileage: startMileage.value,
                 logs: logs.value,
                 lastAction: lastAction.value,
@@ -835,23 +838,69 @@ createApp({
             }
         };
 
-        const getCurrentLocation = async (onProgress) => {
-            if (!navigator.geolocation) {
-                return { address: '位置情報非対応', lat: null, lon: null, accuracy: null };
-            }
+        // 通信の失敗・打ち切り。住所より先に記録した到着にも、取れるまでこれを入れておく
+        const ADDRESS_LOST = '住所取得エラー';
+
+        // 位置が決まった時点で onPosition を呼び、住所（format-spec §1 の値のどれか）を返す
+        const locate = async (onProgress, onPosition) => {
+            if (!navigator.geolocation) return '位置情報非対応';
             const pos = await acquirePosition(onProgress);
-            if (!pos) {
-                return { address: '位置情報取得失敗', lat: null, lon: null, accuracy: null };
-            }
+            if (!pos) return '位置情報取得失敗';
             const lat = pos.coords.latitude;
             const lon = pos.coords.longitude;
-            const accuracy = Math.round(pos.coords.accuracy);
+            onPosition(lat, lon, Math.round(pos.coords.accuracy));
             try {
-                return { address: await reverseGeocode(lat, lon), lat, lon, accuracy };
+                return await reverseGeocode(lat, lon);
             } catch (e) {
                 // 座標は取れているので捨てない。住所だけ手で直してもらう
-                return { address: '住所取得エラー', lat, lon, accuracy };
+                return ADDRESS_LOST;
             }
+        };
+
+        // --- 到着の位置取り（SM-1 dashboard → mileage_check） ---
+        // 到着を押したら位置を待たずに入力画面を出し、位置と住所は裏で取る。
+        // 位置取りは到着1回につき1つ（job）。結果を入れてよい先は2つだけ:
+        //   入力画面の欄 … job が最新（currentJob）で、まだ記録していないとき
+        //   到着記録     … job が記録した到着（job.log）が logs に残っているとき。
+        //                  同じオブジェクトかで探すので、取り消された記録や別の到着には入らない
+        // 住所より先に記録したら、記録には ADDRESS_LOST を入れておく。job は保存しないので、
+        // 取得中に再読込されるとその値のまま残る（途中の値を保存データに残さない）
+        let currentJob = null;
+        const locating = ref(false);        // 最新の job が住所を取り終えていない
+        const addressWaits = ref(0);        // 記録済みで住所を待っている到着の数
+
+        const startLocating = () => {
+            const job = { log: null };
+            currentJob = job;
+            locating.value = true;
+            tempAddress.value = '';
+            tempLat.value = null;
+            tempLon.value = null;
+            tempAccuracy.value = null;
+            refreshCandidates();
+            locate(
+                (acc) => { if (job === currentJob) tempAccuracy.value = Math.round(acc); },
+                (lat, lon, accuracy) => {
+                    if (job !== currentJob) return;
+                    tempLat.value = lat;
+                    tempLon.value = lon;
+                    tempAccuracy.value = accuracy;
+                    refreshCandidates();
+                    // 記録済みなら到着地点を保存する。完了で配送先を学習するのに使う
+                    if (job.log) saveData();
+                }
+            ).then((address) => {
+                if (job === currentJob) locating.value = false;
+                if (job.log) {
+                    addressWaits.value--;
+                    const i = logs.value.indexOf(job.log);
+                    if (i === -1) return;
+                    logs.value[i].address = address;
+                    saveData();
+                } else if (job === currentJob && screen.value === 'mileage_check' && !tempAddress.value) {
+                    tempAddress.value = address;   // 手で入れた住所は上書きしない
+                }
+            });
         };
 
         // --- 距離の検査 ---
@@ -918,25 +967,13 @@ createApp({
             saveData();
         };
 
-        const handleArrival = async () => {
-            loading.value = true;
-            loadingText.value = '位置情報を取得中...';
-            // 【修正 #7】同期処理を Promise.all から分離
-            const time = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-            const loc = await getCurrentLocation((acc) => {
-                loadingText.value = `位置情報を取得中... 精度 ±${Math.round(acc)}m`;
-            });
-            tempTime.value = time;
-            tempAddress.value = loc.address;
-            tempLat.value = loc.lat;
-            tempLon.value = loc.lon;
-            tempAccuracy.value = loc.accuracy;
+        const handleArrival = () => {
+            tempTime.value = nowHm();   // 押した時刻
             tempTollFee.value = '';
             tempParkingFee.value = '';
-            refreshCandidates();   // 到着した時点で近くの配送先を出しておく
-            loading.value = false;
-            screen.value = 'mileage_check';
             inputBuffer.value = '';
+            screen.value = 'mileage_check';
+            startLocating();
         };
 
         const confirmArrival = () => {
@@ -951,6 +988,11 @@ createApp({
                 address: tempAddress.value,
                 mileage: km
             };
+            if (locating.value && !log.address) {
+                log.address = ADDRESS_LOST;
+                currentJob.log = log;
+                addressWaits.value++;
+            }
             // 立替は入力があったときだけ持たせる(format-spec §1)
             const toll = Number(tempTollFee.value);
             const park = Number(tempParkingFee.value);
@@ -964,6 +1006,10 @@ createApp({
         };
 
         const cancelModal = () => {
+            if (screen.value === 'mileage_check') {
+                currentJob = null;   // 記録しなかった到着の位置取りは捨てる
+                locating.value = false;
+            }
             screen.value = 'dashboard';
             inputBuffer.value = '';
             showCandidateList.value = false;
@@ -1393,7 +1439,7 @@ createApp({
 
             // Modal & Data
             // 【修正 #6】tempLocation エイリアスを廃止し tempAddress に統一
-            tempAddress, tempTime, tempAccuracy, tempTollFee, tempParkingFee,
+            tempAddress, tempTime, tempAccuracy, tempTollFee, tempParkingFee, locating, addressWaits, tempLat,
             historyIssue,
             tempDepartureTime, tempDestinationName, tempPaymentMethod, tempRemarks, paymentOptions,
             confirmDeparture, handleArrival, confirmArrival, cancelModal, handleDeparture,

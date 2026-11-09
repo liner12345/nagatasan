@@ -198,6 +198,9 @@
                         {{ getStatusText }}
                     </span>
                 </div>
+                <div v-if="addressWaits > 0" class="text-xs font-bold text-gray-500 mt-2">
+                    <i class="fa-solid fa-circle-notch fa-spin"></i> 到着の住所を取得中
+                </div>
             </div>
 
             <div class="flex flex-col gap-3 my-1">
@@ -537,12 +540,15 @@
                     <div class="w-full">
                         <div class="flex items-center justify-between mb-1 gap-2">
                             <label class="text-xs font-bold text-gray-500">住所（修正可能）</label>
-                            <span v-if="tempAccuracy !== null" class="text-xs font-bold px-1.5 py-0.5 rounded whitespace-nowrap"
+                            <span v-if="locating && tempLat === null" class="text-xs font-bold px-1.5 py-0.5 rounded whitespace-nowrap bg-gray-100 text-gray-600">
+                                <i class="fa-solid fa-circle-notch fa-spin"></i> 測位中<template v-if="tempAccuracy !== null"> ±{{ tempAccuracy }}m</template>
+                            </span>
+                            <span v-else-if="tempAccuracy !== null" class="text-xs font-bold px-1.5 py-0.5 rounded whitespace-nowrap"
                                   :class="tempAccuracy <= 50 ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'">
                                 GPS誤差 ±{{ tempAccuracy }}m<span v-if="tempAccuracy > 50">・要確認</span>
                             </span>
                         </div>
-                        <input type="text" v-model="tempAddress" class="w-full bg-transparent text-sm font-bold text-gray-800 border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1" placeholder="住所を入力">
+                        <input type="text" v-model="tempAddress" class="w-full bg-transparent text-sm font-bold text-gray-800 border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1" :placeholder="locating ? '住所を取得中…' : '住所を入力'">
                         <div v-if="filteredCandidates.length" class="mt-2 flex flex-wrap gap-1 items-center">
                             <span class="text-xs font-bold text-gray-500">近く:</span>
                             <span v-for="(cand, idx) in filteredCandidates.slice(0, 3)" :key="idx" class="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">{{ cand.name }}</span>
