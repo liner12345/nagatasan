@@ -67,6 +67,10 @@ All notable changes to this project will be documented in this file.
   amounts, so the next run was billed with them: an overridden total of 9,999 was still
   the total of the run started after the cancel. The cancel and 業務完了 now share one
   reset, which empties both and keeps only ⑤夏季手当 (hub state-machines SM-1).
+- The position of the current arrival lived only in memory. If the app was reloaded
+  between 到着 and 完了 (iOS often does this to a PWA in the background), 完了 offered no
+  nearby destinations and did not learn the new one, without saying so. The position is
+  now kept in `nippoData_pro_v3` as `arrivalPos`. The backup JSON is unchanged.
 - 開始時刻 froze at the time the app had been opened, so a run started hours later was
   recorded — and billed — with the wrong start time. Two separate causes, both fixed:
   - `nippoData_pro_v3` is saved with `screen: 'start'` when 業務開始 is cancelled

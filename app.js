@@ -166,6 +166,13 @@ createApp({
                     // 次に開いたときも「前回開いた時刻」が居座る
                     if (parsed.startTime && screen.value !== 'start') startTime.value = parsed.startTime;
                     if (parsed.dateStr) dateStr.value = parsed.dateStr;
+                    // 到着した地点。完了のときに配送先を学習し、近くの候補を出すのに使う。
+                    // 戻さないと、到着から完了までの間に再読込されたとき黙って失われる
+                    if (parsed.arrivalPos) {
+                        tempLat.value = parsed.arrivalPos.lat;
+                        tempLon.value = parsed.arrivalPos.lon;
+                        tempAccuracy.value = parsed.arrivalPos.accuracy;
+                    }
                     if (parsed.undoStack) undoStack.value = parsed.undoStack;
                     if (parsed.daily) daily.value = Object.assign(emptyDaily(), parsed.daily);
                     if (parsed.fareOverride) {
@@ -455,6 +462,7 @@ createApp({
                 lastAction: lastAction.value,
                 startTime: startTime.value,
                 dateStr: dateStr.value,
+                arrivalPos: { lat: tempLat.value, lon: tempLon.value, accuracy: tempAccuracy.value },
                 undoStack: undoStack.value,
                 daily: daily.value,
                 fareOverride: fareOverride.value
