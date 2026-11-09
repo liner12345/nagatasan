@@ -723,7 +723,10 @@ createApp({
 
         const handleHeaderBack = () => {
             if (undoStack.value.length > 0) {
-                undo();
+                // 押し間違えると直前の記録が消える。何が消えるかを出して確かめる
+                const last = logs.value[logs.value.length - 1];
+                const what = last ? `（${last.type === 'arrival' ? '到着' : '完了'} ${last.time}）` : '';
+                if (confirm(`直前の記録${what}を取り消しますか？`)) undo();
             } else {
                 if (confirm('業務開始を取り消してトップ画面に戻りますか？\n（入力内容はリセットされます）')) {
                     screen.value = 'start';

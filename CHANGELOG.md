@@ -60,6 +60,9 @@ All notable changes to this project will be documented in this file.
   wrote a 完了 with no arrival. And the header's 戻る restored the pre-edit snapshot,
   silently throwing the edit away. Saving now recomputes `lastAction` from the last record
   (`start` when there is none) and empties the undo stack (hub state-machines SM-2).
+- The header's 戻る deleted the last record on a single tap, with no question asked. It
+  now asks first and names the record it is about to remove, for example
+  "直前の記録（完了 10:23）を取り消しますか？" (hub state-machines SM-1).
 - 開始時刻 froze at the time the app had been opened, so a run started hours later was
   recorded — and billed — with the wrong start time. Two separate causes, both fixed:
   - `nippoData_pro_v3` is saved with `screen: 'start'` when 業務開始 is cancelled
