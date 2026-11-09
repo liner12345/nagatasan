@@ -34,6 +34,22 @@ All notable changes to this project will be documented in this file.
   same is true of the sheet the kit builds, so the two documents still match.
 
 ### Fixed
+- The arrival address often named a place the driver was not at: a different town, and
+  sometimes a different ward. The position was right; the address service was wrong.
+  OpenStreetMap's Nominatim got all four of four landmarks with a known address wrong
+  (a main station came back as the next 町, a castle as the next ward), and disagreed with the national data at
+  23 of 39 random points. Addresses now come from the reverse geocoder of 国土地理院
+  (GSI): `市区町村 + 町字`, for example `千代田区千代田`, or the municipality alone
+  when GSI has no 町字. A point with no result (at sea) is `住所不明`. Nominatim, and the
+  1.1 s spacing it needed, are gone.
+  - GSI returns the municipality only as a code. `vendor/gsi-muni.json` maps the 1,919
+    codes to names; `npm run build:muni` (`tools/build-gsi-muni.mjs`) rebuilds it from
+    GSI's own `muni.js`. A code missing from the table gives `住所不明` rather than a bare
+    町字, which `01_nippo.py` would otherwise copy into the B column as the city.
+  - The request is aborted after 8 s. On a stalled connection it used to wait forever, and
+    the screen stayed on "位置情報を取得中" until the app was killed. It now falls through to
+    `住所取得エラー` like any other failure, keeping the coordinates.
+  - The settings screen credits the source ("住所: 国土地理院"), as GSI asks.
 - 開始時刻 froze at the time the app had been opened, so a run started hours later was
   recorded — and billed — with the wrong start time. Two separate causes, both fixed:
   - `nippoData_pro_v3` is saved with `screen: 'start'` when 業務開始 is cancelled

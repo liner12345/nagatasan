@@ -13,7 +13,7 @@
  * ファイルを足す・消すときは PRECACHE の一覧を更新する。
  * CACHE の版を上げると、次回オンラインで開いたときに古いキャッシュを丸ごと捨てる。
  */
-const CACHE = 'nagata-nippo-v9';
+const CACHE = 'nagata-nippo-v10';
 
 const PRECACHE = [
   './',
@@ -28,6 +28,7 @@ const PRECACHE = [
   './favicon-32x32.png',
   './apple-touch-icon.png',
   './vendor/vue.global.prod.js',
+  './vendor/gsi-muni.json',
   './vendor/fontawesome/css/all.min.css',
   './vendor/fontawesome/webfonts/fa-solid-900.woff2',
   './vendor/fontawesome/webfonts/fa-regular-400.woff2'
@@ -65,7 +66,7 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
-  // 逆ジオコーディング(Nominatim)などの外部リクエストは素通し。
+  // 逆ジオコーディング(国土地理院)などの外部リクエストは素通し。
   // 住所は現在地ごとに変わるのでキャッシュしても当たらないうえ、古い住所を返すと害になる
   if (url.origin !== self.location.origin) return;
 

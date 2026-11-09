@@ -742,8 +742,9 @@ createApp({
         // 逆ジオコーディングへのリクエストは従来どおり1到着につき1回。
         const GEO_ACCURACY_TARGET = 50;    // この誤差(m)以下になったら即採用
         const GEO_MAX_WAIT = 12000;        // 収束しなくてもここで打ち切る(ms)
-        const GEOCODE_MIN_INTERVAL = 1100; // Nominatim の上限は毎秒1リクエスト
-        let lastGeocodeAt = 0;
+        // 電波の弱い所では、応答も失敗も返らないまま通信が止まる。打ち切らないと
+        // 「位置情報を取得中」のまま画面が固まる
+        const GEOCODE_TIMEOUT = 8000;
 
         const acquirePosition = (onProgress) => {
             return new Promise((resolve) => {
@@ -769,44 +770,27 @@ createApp({
             });
         };
 
+        // 国土地理院の逆ジオコーダ。住所は 市区町村 + 町字（例 千代田区千代田）。
+        // API は市区町村をコードでしか返さないので、名前は vendor/gsi-muni.json で引く
+        // （tools/build-gsi-muni.mjs が作る。キーは先頭の 0 を落としたコード）。
+        // 表に無いコードは住所不明にする。町字だけだと日報の B列（市町村）が町名になる
         const reverseGeocode = async (lat, lon) => {
-            const wait = GEOCODE_MIN_INTERVAL - (Date.now() - lastGeocodeAt);
-            if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-            lastGeocodeAt = Date.now();
-            // User-Agent は fetch では送れない禁止ヘッダーなので指定しない。
-            // 言語は accept-language クエリで渡す
-            const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&accept-language=ja`;
-            const res = await fetch(url);
-            if (!res.ok) throw new Error('API Error');
-            return await res.json();
-        };
-
-        const formatAddress = (data) => {
-            const a = data.address || {};
-            const cityStart = a.city || a.town || a.village || a.municipality || a.county || '';
-            // road / house_number / building は入れない。日本の OSM には地番がほとんど無く、
-            // Nominatim は最寄りの道路や建物にスナップするため、
-            // 実際の所在地とは違う名前(県道名・橋の名前など)が混ざる
-            const areaParts = [
-                a.city_district,
-                a.ward,
-                a.suburb,
-                a.quarter,
-                a.neighbourhood,
-                a.block,
-                a.residential,
-                a.hamlet
-            ].filter(Boolean);
-            // 階層どうしが重なることがある(neighbourhood='平池町' と quarter='平池町四丁目' など)。
-            // 完全一致だけでなく、包含関係でも重複を潰す
-            const merged = [];
-            [cityStart, ...areaParts].filter(Boolean).forEach((part) => {
-                if (merged.some((m) => m.includes(part))) return;
-                while (merged.length && part.startsWith(merged[merged.length - 1])) merged.pop();
-                merged.push(part);
-            });
-            const formatted = merged.join('');
-            return formatted || data.display_name?.replace(/^.*?[都道府県]\s*/, '') || '住所不明';
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), GEOCODE_TIMEOUT);
+            try {
+                const url = `https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat=${lat}&lon=${lon}`;
+                const [res, muni] = await Promise.all([
+                    fetch(url, { signal: ctrl.signal }),
+                    fetch('./vendor/gsi-muni.json', { signal: ctrl.signal }).then((r) => r.json())
+                ]);
+                if (!res.ok) throw new Error('API Error');
+                const r = (await res.json()).results;
+                const city = r && muni[String(Number(r.muniCd))];
+                if (!city) return '住所不明';
+                return r.lv01Nm && r.lv01Nm !== '－' ? city + r.lv01Nm : city;
+            } finally {
+                clearTimeout(timer);
+            }
         };
 
         const getCurrentLocation = async (onProgress) => {
@@ -821,8 +805,7 @@ createApp({
             const lon = pos.coords.longitude;
             const accuracy = Math.round(pos.coords.accuracy);
             try {
-                const data = await reverseGeocode(lat, lon);
-                return { address: formatAddress(data), lat, lon, accuracy };
+                return { address: await reverseGeocode(lat, lon), lat, lon, accuracy };
             } catch (e) {
                 // 座標は取れているので捨てない。住所だけ手で直してもらう
                 return { address: '住所取得エラー', lat, lon, accuracy };
