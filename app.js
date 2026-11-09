@@ -969,6 +969,8 @@ createApp({
 
         const handleArrival = () => {
             tempTime.value = nowHm();   // 押した時刻
+            // 配送先は案件ごと。到着画面の「近く」で選んだら、完了画面にそのまま出す
+            tempDestinationName.value = '';
             tempTollFee.value = '';
             tempParkingFee.value = '';
             inputBuffer.value = '';
@@ -1018,12 +1020,11 @@ createApp({
         // --- Departure & History Logic ---
         const handleDeparture = () => {
             tempDepartureTime.value = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-            tempDestinationName.value = '';
             tempPaymentMethod.value = '現金';
             tempRemarks.value = '';
             refreshCandidates();
-            // 一度行った場所なら、押さなくても候補が出るようにする
-            showCandidateList.value = filteredCandidates.value.length > 0;
+            // 一度行った場所なら、押さなくても候補が出るようにする（到着画面で選んであれば出さない）
+            showCandidateList.value = !tempDestinationName.value && filteredCandidates.value.length > 0;
             screen.value = 'departure_check';
         };
 
@@ -1450,6 +1451,7 @@ createApp({
             
             // Intelligent History
             showCandidateList, toggleCandidateList, selectCandidate, deleteCandidate, filteredCandidates,
+            startLocating,
             
             // Navigation
             startWork, goToSummary, backToDashboard, saveAndReset, viewHistory, closeSubScreens,

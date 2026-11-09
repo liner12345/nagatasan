@@ -29,6 +29,11 @@ All notable changes to this project will be documented in this file.
   - An address typed by hand is never overwritten.
   - The input screens are never saved as the current screen, even when the background work
     saves the run while one is open; a reload always comes back to the dashboard.
+- The arrival screen has a "測り直す" button that takes the position and the address again,
+  for a fix that landed on the wrong side of a boundary. The GPS error badge stays.
+- The nearby destinations under the address ("近く:") can be tapped. Tapping one picks it
+  as this case's destination, exactly like picking it on the 完了 screen, and the 完了
+  screen then opens with it filled in.
 
 ### Added
 - A "金額を手直し" panel on the report screen. The fare has always been computed from the
